@@ -29,6 +29,6 @@
       }
     }
   },
-  "postCreateCommand": "terraform version && aws --version && python --version",
+  "postCreateCommand": "set -e && terraform version && aws --version && python --version && git --version && echo 'All tools installed successfully!'",
   "remoteUser": "vscode"
 }
