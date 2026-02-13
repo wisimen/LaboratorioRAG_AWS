@@ -3,16 +3,16 @@
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "ghcr.io/devcontainers/features/terraform:1": {
-      "version": "latest"
+      "version": "1.7"
     },
     "ghcr.io/devcontainers/features/aws-cli:1": {
-      "version": "latest"
+      "version": "2.15"
     },
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.11"
     },
     "ghcr.io/devcontainers/features/git:1": {
-      "version": "latest"
+      "version": "2.44"
     }
   },
   "customizations": {
