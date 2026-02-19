@@ -1,18 +1,12 @@
 {
   "name": "LaboratorioRAG AWS",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
   "features": {
-    "ghcr.io/devcontainers/features/terraform:1": {
-      "version": "1.7"
-    },
-    "ghcr.io/devcontainers/features/aws-cli:1": {
-      "version": "2.15"
-    },
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11"
-    },
-    "ghcr.io/devcontainers/features/git:1": {
-      "version": "2.44"
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest"
     }
   },
   "customizations": {
@@ -29,6 +23,6 @@
       }
     }
   },
-  "postCreateCommand": "set -e && terraform version && aws --version && python --version && git --version && echo 'All tools installed successfully!'",
+  "postCreateCommand": "echo '=== Verificando herramientas instaladas ===' && terraform version && aws --version && python --version && git --version && docker --version && node --version && gemini-cli --version && echo '✓ Todas las herramientas están listas'",
   "remoteUser": "vscode"
 }

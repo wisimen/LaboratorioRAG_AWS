@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: |
+            echo "=== Verificando herramientas instaladas ==="
+            terraform version
+            aws --version
+            python --version
+            git --version
+            docker --version
+            node --version
+            gemini-cli --version
+            echo "✓ Todas las herramientas están disponibles"
