@@ -6,10 +6,10 @@ RUN apt-get update && apt-get upgrade -y
 # Install Git
 RUN apt-get install -y git
 
-# Install Python 3.11
-RUN apt-get install -y python3.11 python3.11-venv python3-pip && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    ln -sf /usr/bin/python3.11 /usr/local/bin/python
+# Install Python 3
+RUN apt-get install -y python3 python3-venv python3-pip && \
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    ln -sf /usr/bin/python3 /usr/local/bin/python
 
 # Install Docker CLI
 RUN apt-get install -y docker.io
