@@ -24,9 +24,6 @@ RUN apt-get install -y wget unzip && \
     rm terraform_1.7.0_linux_amd64.zip && \
     terraform version
 
-# Install AWS CLI
-RUN apt-get install -y awscli
-
 # Install gemini-cli globally
 RUN npm install -g gemini-cli
 
