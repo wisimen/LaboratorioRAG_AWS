@@ -19,13 +19,13 @@ RUN apt-get install -y nodejs npm
 
 # Install Terraform
 RUN apt-get install -y wget unzip && \
-    wget https://releases.hashicorp.com/terraform/1.7.0/terraform_1.7.0_linux_amd64.zip && \
-    unzip terraform_1.7.0_linux_amd64.zip -d /usr/local/bin && \
-    rm terraform_1.7.0_linux_amd64.zip && \
+    wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_amd64.zip && \
+    unzip terraform_1.10.5_linux_amd64.zip -d /usr/local/bin && \
+    rm terraform_1.10.5_linux_amd64.zip && \
     terraform version
 
 # Install gemini-cli globally
-RUN npm install -g gemini-cli
+RUN npm install -g @google/gemini-cli
 
 # Clean up apt cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*

@@ -24,6 +24,6 @@
       }
     }
   },
-  "postCreateCommand": "echo '=== Verificando herramientas instaladas ===' && terraform version && aws --version && python --version && git --version && docker --version && node --version && gemini-cli --version && echo '✓ Todas las herramientas están listas'",
+  "postCreateCommand": "echo '=== Verificando herramientas instaladas ===' && terraform version && aws --version && python --version && git --version && docker --version && node --version && gemini --version && echo '✓ Todas las herramientas están listas'",
   "remoteUser": "vscode"
 }
