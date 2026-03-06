@@ -39,12 +39,21 @@ _`json` como salida por defecto_
 `terraform init`
 
 8. Realizar el plan de despliegue
-`terraform plan`
+`terraform plan` si se desea salida `terraform plan -out=tfplan`
 _de acuerdo a los comparado el crea o elimina según aplique_
 
 9. Aplicar o desplegar
-`terraform apply`
+`terraform apply` o `terraform apply "tfplan"`
 
 10. Reconfigurar cuando hay cambios
 `terraform reconfigure`
 
+11. Eliminar lo desplegado
+`terraform destroy`
+
+
+pendiente crear:
+- sub nets
+- route tables
+- internet gateway
+- nacl
