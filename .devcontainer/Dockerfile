@@ -14,8 +14,12 @@ RUN apt-get install -y python3 python3-venv python3-pip && \
 # Install Docker CLI
 RUN apt-get install -y docker.io
 
-# Install Node.js and npm (required for gemini-cli)
-RUN apt-get install -y nodejs npm
+# Install Node.js 20 LTS and npm (required for gemini-cli; Node.js v20+ needed for the regex 'v' flag used by string-width)
+# The NodeSource setup script is the officially documented install method: https://github.com/nodesource/distributions
+RUN apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Terraform
 RUN apt-get install -y wget unzip && \
