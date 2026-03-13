@@ -52,12 +52,14 @@ _de acuerdo a los comparado el crea o elimina según aplique_
 `terraform destroy`
 
 
-pendiente crear:
-- sub nets
-- route tables
-- internet gateway
-- nacl
-
 
 ## Link a redes
 [ver aquí](https://visualsubnetcalc.com/index.html?c=1N4IgbiBcIEwgNCARlEBGAnDAdGgbABy7YAMA9DACwIgDOUoJA9gyCQA6skCOrAdqhoBjQQF9EaXpFADowsePSdpsKaEoAnfoMQi5igKxaVskPP2KAzGpB5jMnSD1nFAdnshT5l6N++gA)
+
+
+## comando para conectarse por ssh a una instancia de ec2
+ssh -i C://...key.pem
+
+### pendiente crear:
+- respuesta de peticion
+- dividir en modulos

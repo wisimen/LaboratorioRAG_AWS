@@ -8,6 +8,17 @@ variable "aws_profile" {
   default = "default"
 }
 
+variable "environment_name" {
+  description = "Nombre del entorno"
+  type = map(string)
+  default = {
+    "default" = "default",
+    "prod"    = "prod",
+    "test"    = "test",
+    "dev"     = "dev"
+  }
+}
+
 # Availability Zones
 variable "aws_availability_zone_1" {
   default = "us-east-1a"
