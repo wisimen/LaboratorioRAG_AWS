@@ -237,10 +237,16 @@ resource "aws_instance" "k3s-master" {
       --write-kubeconfig-mode=644 \
       --disable=traefik
 
-    # Esperar a que k3s esté completamente listo antes de leer el token
+    # Esperar a que k3s esté completamente listo antes de leer el token (máx. 5 min)
     echo "Esperando a que el servicio k3s esté activo..."
+    K3S_WAIT=0
     until systemctl is-active --quiet k3s && kubectl get nodes --kubeconfig=/etc/rancher/k3s/k3s.yaml 2>/dev/null; do
-      echo "k3s aún no está listo, reintentando en 10s..."
+      K3S_WAIT=$((K3S_WAIT + 10))
+      if [ $K3S_WAIT -ge 300 ]; then
+        echo "ERROR: k3s no estuvo listo en 5 minutos, abortando."
+        exit 1
+      fi
+      echo "k3s aún no está listo, reintentando en 10s... ($K3S_WAIT/300s)"
       sleep 10
     done
     echo "k3s está listo."
