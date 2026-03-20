@@ -569,3 +569,39 @@ output "frontend_url" {
   description = "URL para acceder al servidor web"
   value       = "http://${aws_instance.web_frontend.public_ip}"
 }
+
+
+########## Módulo K3S ##########
+# Despliega un cluster Kubernetes ligero (k3s) con un Master y un Worker en t3.micro.
+# Incluye un bucket S3 y un EFS para el almacenamiento persistente de los pods.
+
+module "k3s" {
+  source = "./modules/k3s"
+
+  vpc_id      = aws_vpc.vpc-itm-rag-legal.id
+  vpc_cidr    = var.vpc_cidr[terraform.workspace]
+  subnet_id   = aws_subnet.subnet-public-backend.id
+  environment = var.environment_name[terraform.workspace]
+  ami_id      = data.aws_ami.amazon_linux_2023.id
+  aws_region  = var.aws_region
+}
+
+output "k3s_master_public_ip" {
+  description = "IP pública del Master K3S"
+  value       = module.k3s.master_public_ip
+}
+
+output "k3s_worker_public_ip" {
+  description = "IP pública del Worker K3S"
+  value       = module.k3s.worker_public_ip
+}
+
+output "k3s_s3_bucket" {
+  description = "Nombre del bucket S3 del cluster K3S"
+  value       = module.k3s.s3_bucket_name
+}
+
+output "k3s_efs_dns" {
+  description = "DNS del EFS para volúmenes persistentes del cluster K3S"
+  value       = module.k3s.efs_dns_name
+}
