@@ -573,6 +573,8 @@ output "frontend_url" {
 
 ########## Módulo K3S ##########
 # Despliega un cluster Kubernetes ligero (k3s) con un Master y un Worker en t3.micro.
+# Los nodos se ubican en la subnet PRIVADA; el acceso de administración se realiza
+# exclusivamente vía SSM Session Manager (sin SSH, sin IP pública).
 # Incluye un bucket S3 y un EFS para el almacenamiento persistente de los pods.
 
 module "k3s" {
@@ -580,20 +582,35 @@ module "k3s" {
 
   vpc_id      = aws_vpc.vpc-itm-rag-legal.id
   vpc_cidr    = var.vpc_cidr[terraform.workspace]
-  subnet_id   = aws_subnet.subnet-public-backend.id
+  subnet_id   = aws_subnet.subnet-private-backend.id
   environment = var.environment_name[terraform.workspace]
   ami_id      = data.aws_ami.amazon_linux_2023.id
   aws_region  = var.aws_region
 }
 
-output "k3s_master_public_ip" {
-  description = "IP pública del Master K3S"
-  value       = module.k3s.master_public_ip
+output "k3s_master_instance_id" {
+  description = "ID de la instancia Master K3S (usar con SSM Session Manager)"
+  value       = module.k3s.master_instance_id
 }
 
-output "k3s_worker_public_ip" {
-  description = "IP pública del Worker K3S"
-  value       = module.k3s.worker_public_ip
+output "k3s_worker_instance_id" {
+  description = "ID de la instancia Worker K3S (usar con SSM Session Manager)"
+  value       = module.k3s.worker_instance_id
+}
+
+output "k3s_ssm_connect_master" {
+  description = "Comando SSM Session Manager para acceder al Master K3S"
+  value       = module.k3s.ssm_connect_master
+}
+
+output "k3s_ssm_connect_worker" {
+  description = "Comando SSM Session Manager para acceder al Worker K3S"
+  value       = module.k3s.ssm_connect_worker
+}
+
+output "k3s_kubectl_port_forward" {
+  description = "Comando para port-forward del API Server K3S vía SSM"
+  value       = module.k3s.kubectl_port_forward
 }
 
 output "k3s_s3_bucket" {

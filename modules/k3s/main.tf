@@ -1,21 +1,14 @@
 ########## Security Group - Cluster K3S ##########
 # / -> VPC -> Security Group -> K3S
+# Los nodos están en una subnet PRIVADA; el acceso de administración se realiza
+# exclusivamente a través de SSM Session Manager — no hay SSH abierto.
 
 resource "aws_security_group" "sg-k3s" {
   name        = "sg-k3s-${var.environment}"
-  description = "Security Group para los nodos del cluster K3S"
+  description = "Security Group para los nodos del cluster K3S (red privada, sin SSH)"
   vpc_id      = var.vpc_id
 
-  # SSH solo desde dentro de la VPC; usar SSM Session Manager para acceso externo
-  ingress {
-    description = "SSH desde la VPC"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # API Server de Kubernetes
+  # API Server de Kubernetes (solo desde dentro de la VPC)
   ingress {
     description = "Kubernetes API Server"
     from_port   = 6443
@@ -42,16 +35,16 @@ resource "aws_security_group" "sg-k3s" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # NodePort services
+  # NodePort services (solo desde dentro de la VPC)
   ingress {
-    description = "NodePort Services"
+    description = "NodePort Services (interno VPC)"
     from_port   = 30000
     to_port     = 32767
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
-  # Todo el tráfico saliente permitido
+  # Todo el tráfico saliente permitido (necesario para NAT → internet y VPC Endpoints)
   egress {
     description = "Permitir toda la salida"
     from_port   = 0
@@ -62,6 +55,84 @@ resource "aws_security_group" "sg-k3s" {
 
   tags = {
     Name        = "sg-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+
+########## Security Group - VPC Endpoints SSM ##########
+# Permite tráfico HTTPS desde los nodos K3S hacia los VPC Interface Endpoints de SSM
+
+resource "aws_security_group" "sg-ssm-endpoints" {
+  name        = "sg-ssm-endpoints-k3s-${var.environment}"
+  description = "Security Group para los VPC Endpoints de SSM del cluster K3S"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "HTTPS desde nodos K3S hacia VPC Endpoints SSM"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.sg-k3s.id]
+  }
+
+  egress {
+    description = "Permitir toda la salida"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "sg-ssm-endpoints-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+
+########## VPC Interface Endpoints - SSM Session Manager ##########
+# Permiten que las instancias en la subnet PRIVADA se comuniquen con SSM, SSM Session
+# Manager y EC2 Messages sin necesidad de salir a internet a través del NAT Gateway.
+
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ssm"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [var.subnet_id]
+  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ssm-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [var.subnet_id]
+  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ssmmessages-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ec2messages" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [var.subnet_id]
+  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ec2messages-k3s-${var.environment}"
     Environment = var.environment
   }
 }
@@ -153,14 +224,16 @@ resource "aws_instance" "k3s-master" {
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.sg-k3s.id]
   iam_instance_profile        = aws_iam_instance_profile.k3s-profile.name
-  associate_public_ip_address = true
+  associate_public_ip_address = false # Subnet privada — sin IP pública
 
   user_data = <<-EOF
     #!/bin/bash
     set -e
 
-    # Instalar k3s como servidor (Master)
-    curl -sfL https://get.k3s.io | sh -s - server \
+    # Instalar k3s como servidor (Master) — versión fijada para reproducibilidad
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="${var.k3s_version}" \
+      sh -s - server \
       --write-kubeconfig-mode=644 \
       --disable=traefik
 
@@ -209,7 +282,7 @@ resource "aws_instance" "k3s-worker" {
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.sg-k3s.id]
   iam_instance_profile        = aws_iam_instance_profile.k3s-profile.name
-  associate_public_ip_address = true
+  associate_public_ip_address = false # Subnet privada — sin IP pública
 
   user_data = <<-EOF
     #!/bin/bash
@@ -243,8 +316,9 @@ resource "aws_instance" "k3s-worker" {
       --query "Parameter.Value" \
       --output text)
 
-    # Instalar k3s en modo agente (Worker) y unirse al cluster
+    # Instalar k3s en modo agente (Worker) — versión fijada para reproducibilidad
     curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="${var.k3s_version}" \
       K3S_URL="https://$MASTER_IP:6443" \
       K3S_TOKEN="$K3S_TOKEN" \
       sh -

@@ -6,7 +6,7 @@ variable "vpc_id" {
 }
 
 variable "subnet_id" {
-  description = "ID de la subnet donde se desplegarán las instancias K3S"
+  description = "ID de la subnet PRIVADA donde se desplegarán las instancias K3S y los VPC Endpoints"
   type        = string
 }
 
@@ -23,6 +23,12 @@ variable "environment" {
 variable "ami_id" {
   description = "AMI ID para las instancias EC2 del cluster K3S"
   type        = string
+}
+
+variable "k3s_version" {
+  description = "Versión de k3s a instalar (e.g. v1.31.4+k3s1). Fijar a una versión concreta para reproducibilidad."
+  type        = string
+  default     = "v1.31.4+k3s1"
 }
 
 variable "aws_region" {
