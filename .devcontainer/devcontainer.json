@@ -8,7 +8,12 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest"
     },
-    "ghcr.io/devcontainers/features/aws-cli:1": {}
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "1.32.0",
+      "helm": "3.17.0",
+      "minikube": "none"
+    }
   },
   "customizations": {
     "vscode": {
@@ -24,6 +29,6 @@
       }
     }
   },
-  "postCreateCommand": "echo '=== Verificando herramientas instaladas ===' && terraform version && aws --version && python --version && git --version && docker --version && node --version && gemini --version && echo '✓ Todas las herramientas están listas'",
+  "postCreateCommand": "echo '=== Verificando herramientas instaladas ===' && terraform version && aws --version && python --version && git --version && docker --version && node --version && gemini --version && kubectl version --client && helm version && echo '✓ Todas las herramientas están listas'",
   "remoteUser": "vscode"
 }
