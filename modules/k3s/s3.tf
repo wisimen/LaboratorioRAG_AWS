@@ -47,8 +47,7 @@ resource "aws_s3_bucket_public_access_block" "k3s-storage-public-access" {
 ########## Security Group - EFS ##########
 # Permite tráfico NFS (puerto 2049) solo desde los nodos del cluster K3S
 
-resource "aws_security_group" "sg-efs-k3s" {
-  name        = "sg-efs-k3s-${var.environment}"
+resource "aws_security_group" "secgroup-k3s-efs" {
   description = "Security Group para el EFS del cluster K3S"
   vpc_id      = var.vpc_id
 
@@ -57,7 +56,7 @@ resource "aws_security_group" "sg-efs-k3s" {
     from_port       = 2049
     to_port         = 2049
     protocol        = "tcp"
-    security_groups = [aws_security_group.sg-k3s.id]
+    security_groups = [aws_security_group.secgroup-cluster-k3s.id]
   }
 
   egress {
@@ -94,5 +93,5 @@ resource "aws_efs_file_system" "k3s-efs" {
 resource "aws_efs_mount_target" "k3s-efs-mount" {
   file_system_id  = aws_efs_file_system.k3s-efs.id
   subnet_id       = var.subnet_id
-  security_groups = [aws_security_group.sg-efs-k3s.id]
+  security_groups = [aws_security_group.secgroup-k3s-efs.id]
 }

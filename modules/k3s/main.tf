@@ -3,8 +3,15 @@
 # Los nodos están en una subnet PRIVADA; el acceso de administración se realiza
 # exclusivamente a través de SSM Session Manager — no hay SSH abierto.
 
-resource "aws_security_group" "sg-k3s" {
-  name        = "sg-k3s-${var.environment}"
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
+data "aws_iam_instance_profile" "lab_profile" {
+  name = "LabInstanceProfile"
+}
+
+resource "aws_security_group" "secgroup-cluster-k3s" {
   description = "Security Group para los nodos del cluster K3S (red privada, sin SSH)"
   vpc_id      = var.vpc_id
 
@@ -54,7 +61,7 @@ resource "aws_security_group" "sg-k3s" {
   }
 
   tags = {
-    Name        = "sg-k3s-${var.environment}"
+    Name        = "secgroup-cluster-k3s-${var.environment}"
     Environment = var.environment
   }
 }
@@ -63,8 +70,7 @@ resource "aws_security_group" "sg-k3s" {
 ########## Security Group - VPC Endpoints SSM ##########
 # Permite tráfico HTTPS desde los nodos K3S hacia los VPC Interface Endpoints de SSM
 
-resource "aws_security_group" "sg-ssm-endpoints" {
-  name        = "sg-ssm-endpoints-k3s-${var.environment}"
+resource "aws_security_group" "secgroup-k3s-ssm-endpoints" {
   description = "Security Group para los VPC Endpoints de SSM del cluster K3S"
   vpc_id      = var.vpc_id
 
@@ -73,7 +79,7 @@ resource "aws_security_group" "sg-ssm-endpoints" {
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    security_groups = [aws_security_group.sg-k3s.id]
+    security_groups = [aws_security_group.secgroup-cluster-k3s.id]
   }
 
   egress {
@@ -85,7 +91,7 @@ resource "aws_security_group" "sg-ssm-endpoints" {
   }
 
   tags = {
-    Name        = "sg-ssm-endpoints-k3s-${var.environment}"
+    Name        = "secgroup-k3s-ssm-endpoints-${var.environment}"
     Environment = var.environment
   }
 }
@@ -100,7 +106,7 @@ resource "aws_vpc_endpoint" "ssm" {
   service_name        = "com.amazonaws.${var.aws_region}.ssm"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
   private_dns_enabled = true
 
   tags = {
@@ -114,7 +120,7 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
   private_dns_enabled = true
 
   tags = {
@@ -128,89 +134,13 @@ resource "aws_vpc_endpoint" "ec2messages" {
   service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.sg-ssm-endpoints.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
   private_dns_enabled = true
 
   tags = {
     Name        = "vpce-ec2messages-k3s-${var.environment}"
     Environment = var.environment
   }
-}
-
-
-########## IAM Role para nodos K3S ##########
-# Permite a las instancias acceder a SSM Parameter Store y S3
-
-resource "aws_iam_role" "k3s-role" {
-  name = "k3s-role-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
-
-  tags = {
-    Name        = "k3s-role-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-# Permite el uso de SSM Session Manager y acceso básico a SSM
-resource "aws_iam_role_policy_attachment" "k3s-ssm-core" {
-  role       = aws_iam_role.k3s-role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-# Permite leer/escribir parámetros en SSM Parameter Store (token de unión al cluster)
-resource "aws_iam_role_policy" "k3s-ssm-params" {
-  name = "k3s-ssm-params-${var.environment}"
-  role = aws_iam_role.k3s-role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "ssm:PutParameter",
-        "ssm:GetParameter",
-        "ssm:GetParameters",
-        "ssm:DeleteParameter"
-      ]
-      Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/k3s/${var.environment}/*"
-    }]
-  })
-}
-
-# Permite a los nodos leer y escribir únicamente en el bucket S3 del cluster K3S
-resource "aws_iam_role_policy" "k3s-s3" {
-  name = "k3s-s3-policy-${var.environment}"
-  role = aws_iam_role.k3s-role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ]
-      Resource = [
-        "arn:aws:s3:::k3s-storage-${var.environment}-${data.aws_caller_identity.current.account_id}",
-        "arn:aws:s3:::k3s-storage-${var.environment}-${data.aws_caller_identity.current.account_id}/*"
-      ]
-    }]
-  })
-}
-
-resource "aws_iam_instance_profile" "k3s-profile" {
-  name = "k3s-profile-${var.environment}"
-  role = aws_iam_role.k3s-role.name
 }
 
 
@@ -222,8 +152,8 @@ resource "aws_instance" "k3s-master" {
   ami                         = var.ami_id
   instance_type               = "t3.micro"
   subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.sg-k3s.id]
-  iam_instance_profile        = aws_iam_instance_profile.k3s-profile.name
+  vpc_security_group_ids      = [aws_security_group.secgroup-cluster-k3s.id]
+  iam_instance_profile        = data.aws_iam_instance_profile.lab_profile.name
   associate_public_ip_address = false # Subnet privada — sin IP pública
 
   user_data = <<-EOF
@@ -286,8 +216,8 @@ resource "aws_instance" "k3s-worker" {
   ami                         = var.ami_id
   instance_type               = "t3.micro"
   subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.sg-k3s.id]
-  iam_instance_profile        = aws_iam_instance_profile.k3s-profile.name
+  vpc_security_group_ids      = [aws_security_group.secgroup-cluster-k3s.id]
+  iam_instance_profile        = data.aws_iam_instance_profile.lab_profile.name
   associate_public_ip_address = false # Subnet privada — sin IP pública
 
   user_data = <<-EOF
