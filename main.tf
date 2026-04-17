@@ -593,9 +593,19 @@ output "k3s_master_instance_id" {
   value       = module.k3s.master_instance_id
 }
 
+output "k3s_master_public_ip" {
+  description = "IP pública del Master K3S"
+  value       = module.k3s.master_public_ip
+}
+
 output "k3s_worker_instance_id" {
   description = "ID de la instancia Worker K3S (usar con SSM Session Manager)"
   value       = module.k3s.worker_instance_id
+}
+
+output "k3s_worker_public_ip" {
+  description = "IP pública del Worker K3S"
+  value       = module.k3s.worker_public_ip
 }
 
 output "k3s_ssm_connect_master" {

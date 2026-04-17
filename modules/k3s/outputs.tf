@@ -12,6 +12,11 @@ output "master_private_ip" {
   value       = aws_instance.k3s-master.private_ip
 }
 
+output "master_public_ip" {
+  description = "IP pública del nodo Master K3S"
+  value       = aws_instance.k3s-master.public_ip
+}
+
 output "worker_instance_id" {
   description = "ID de la instancia EC2 del nodo Worker K3S"
   value       = aws_instance.k3s-worker.id
@@ -20,6 +25,11 @@ output "worker_instance_id" {
 output "worker_private_ip" {
   description = "IP privada del nodo Worker K3S"
   value       = aws_instance.k3s-worker.private_ip
+}
+
+output "worker_public_ip" {
+  description = "IP pública del nodo Worker K3S"
+  value       = aws_instance.k3s-worker.public_ip
 }
 
 output "s3_bucket_name" {

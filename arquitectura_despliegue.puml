@@ -1,0 +1,105 @@
+@startuml
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+title LaboratorioRAG_AWS - Arquitectura de Despliegue (Terraform)
+
+actor "Usuario Internet" as internet_user
+actor "Administrador" as admin
+cloud "AWS us-east-1" as aws {
+
+  node "Terraform" as tf {
+    artifact "Backend remoto S3\nws-base-bucket\nenv:/<workspace>/itm_iac_state.tfstate" as tfstate
+  }
+
+  frame "VPC itm-rag-legal\nCIDR por workspace" as vpc {
+
+    cloud "Internet Gateway" as igw
+    cloud "NAT Gateway\n+ Elastic IP" as nat
+
+    frame "Route Tables" as rts {
+      rectangle "RT Publica\n0.0.0.0/0 -> IGW" as rt_public
+      rectangle "RT Privada\n0.0.0.0/0 -> NAT" as rt_private
+    }
+
+    frame "Subred publica frontend\nAZ us-east-1a" as sn_pub_fe {
+      node "EC2 web_frontend\nAmazon Linux 2023\nApache HTTPD" as web
+      rectangle "SG Frontend\n80,443,22 desde 0.0.0.0/0" as sg_web
+      rectangle "NACL Public Frontend" as nacl_pub_fe
+    }
+
+    frame "Subred publica backend\nAZ us-east-1a" as sn_pub_be {
+      rectangle "NACL Public Backend" as nacl_pub_be
+    }
+
+    frame "Subred privada frontend\nAZ us-east-1b" as sn_pri_fe {
+      rectangle "NACL Private Frontend" as nacl_pri_fe
+    }
+
+    frame "Subred privada backend\nAZ us-east-1b" as sn_pri_be {
+      node "EC2 k3s-master\nt3.micro\nsin IP publica" as k3s_master
+      node "EC2 k3s-worker\nt3.micro\nsin IP publica" as k3s_worker
+
+      rectangle "SG K3S\n6443/tcp, 8472/udp, 10250/tcp,\n30000-32767/tcp desde VPC" as sg_k3s
+      rectangle "NACL Private Backend" as nacl_pri_be
+
+      rectangle "VPC Endpoint SSM\nInterface + Private DNS" as vpce_ssm
+      rectangle "VPC Endpoint SSMMessages\nInterface + Private DNS" as vpce_ssmm
+      rectangle "VPC Endpoint EC2Messages\nInterface + Private DNS" as vpce_ec2m
+      rectangle "SG VPCE SSM\n443 desde SG K3S" as sg_vpce
+
+      database "EFS k3s-efs\nEncrypted" as efs
+      rectangle "Mount target (NFS 2049)\nen subnet privada backend" as efs_mt
+      rectangle "SG EFS\n2049 desde SG K3S" as sg_efs
+    }
+
+    storage "S3 bucket k3s-storage-<env>-<account_id>\nVersioning + SSE AES256 + Public Access Block" as s3_k3s
+
+  }
+
+  cloud "AWS Systems Manager" as ssm
+}
+
+internet_user --> web : HTTP/HTTPS
+web --> igw : salida internet
+
+rt_public --> igw
+rt_private --> nat
+nat --> igw
+
+admin --> ssm : Session Manager
+ssm --> vpce_ssm
+ssm --> vpce_ssmm
+ssm --> vpce_ec2m
+
+k3s_master --> vpce_ssm : publicar token/IP en Parameter Store
+k3s_worker --> vpce_ssm : leer token/IP
+k3s_worker --> k3s_master : join cluster (6443)
+
+k3s_master --> efs_mt : NFS 2049
+k3s_worker --> efs_mt : NFS 2049
+k3s_master --> s3_k3s : objetos/artefactos
+k3s_worker --> s3_k3s : objetos/artefactos
+
+web -- sg_web
+k3s_master -- sg_k3s
+k3s_worker -- sg_k3s
+vpce_ssm -- sg_vpce
+vpce_ssmm -- sg_vpce
+vpce_ec2m -- sg_vpce
+efs_mt -- sg_efs
+
+tf --> vpc : crea recursos
+
+tf --> tfstate : lee/escribe estado
+
+note bottom of vpc
+  El modulo k3s se despliega en subnet privada backend:
+  - sin SSH ni IP publica
+  - administracion via SSM Session Manager
+  - almacenamiento persistente en EFS y S3
+end note
+
+@enduml

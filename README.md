@@ -70,6 +70,9 @@ _de acuerdo a los comparado el crea o elimina según aplique_
 Los nodos K3S se encuentran en la **subnet privada** y no tienen IP pública.  
 El acceso de administración se realiza **exclusivamente** a través de **AWS SSM Session Manager** — no se necesita SSH ni abrir ningún puerto al exterior.
 
+> Lens no importa un "manifiesto" de Kubernetes para administrar el clúster; lo que necesita es un archivo `kubeconfig`.
+> En este proyecto ese archivo se puede extraer desde el Master y usarlo con un túnel local hacia el API Server de K3S.
+
 ### Prerrequisitos
 
 ```bash
@@ -91,7 +94,11 @@ Después de `terraform apply`, los IDs de las instancias aparecen en los outputs
 ```bash
 terraform output k3s_master_instance_id   # e.g. i-0abc123def456789a
 terraform output k3s_worker_instance_id   # e.g. i-0abc123def456789b
+terraform output k3s_master_public_ip     # e.g. 54.123.45.67
+terraform output k3s_worker_public_ip     # e.g. 54.123.45.68
 ```
+
+Nota: si las instancias siguen en subnet privada, los outputs de IP pública pueden aparecer vacíos hasta que se les asigne una IP pública o Elastic IP.
 
 También puedes ver todos los comandos listos para copiar:
 
@@ -116,12 +123,18 @@ sudo kubectl get nodes
 sudo kubectl get pods -A
 ```
 
-### 3. Acceder al API Server de K3S con `kubectl` desde tu máquina local
+### 3. Generar el `kubeconfig` para Lens o `kubectl`
 
-El plugin de Session Manager permite hacer **port-forward** del puerto 6443 del Master
-hacia tu máquina local sin abrir ningún puerto en el Security Group:
+Este archivo sirve para ambos usos: conectarte desde consola con `kubectl` o importarlo en Lens para administración gráfica.
 
-**Paso 3a — Iniciar el port-forward en una terminal:**
+El flujo correcto es:
+
+1. abrir un port-forward del API Server del Master hacia `127.0.0.1:6443`
+2. extraer el archivo `/etc/rancher/k3s/k3s.yaml` del Master con SSM
+3. cambiar el servidor del `kubeconfig` a `https://127.0.0.1:6443`
+4. importar ese archivo en Lens o usarlo con `kubectl`
+
+**Paso 3a — dejar abierto el túnel al puerto 6443:**
 
 ```bash
 aws ssm start-session \
@@ -131,32 +144,43 @@ aws ssm start-session \
   --parameters '{"portNumber":["6443"],"localPortNumber":["6443"]}'
 ```
 
-**Paso 3b — Copiar el kubeconfig desde el Master (en otra terminal):**
+**Paso 3b — exportar el kubeconfig desde el Master:**
 
 ```bash
-# Obtener el kubeconfig del Master y guardarlo localmente
-aws ssm start-session \
-  --target $(terraform output -raw k3s_master_instance_id) \
+CMD_ID=$(aws ssm send-command \
+  --instance-ids "$(terraform output -raw k3s_master_instance_id)" \
   --region us-east-1 \
   --document-name AWS-RunShellScript \
-  --parameters '{"commands":["cat /etc/rancher/k3s/k3s.yaml"]}' \
-  --query 'StandardOutputContent' \
-  --output text > /tmp/k3s.yaml
+  --parameters commands='["sudo cat /etc/rancher/k3s/k3s.yaml"]' \
+  --query 'Command.CommandId' \
+  --output text)
 
-# Ajustar el servidor para apuntar al port-forward local
-# Linux:
-sed -i 's|https://.*:6443|https://127.0.0.1:6443|g' /tmp/k3s.yaml
-# macOS (BSD sed requiere argumento de extensión):
-# sed -i '' 's|https://.*:6443|https://127.0.0.1:6443|g' /tmp/k3s.yaml
+aws ssm wait command-executed \
+  --command-id "$CMD_ID" \
+  --instance-id "$(terraform output -raw k3s_master_instance_id)" \
+  --region us-east-1
+
+aws ssm get-command-invocation \
+  --command-id "$CMD_ID" \
+  --instance-id "$(terraform output -raw k3s_master_instance_id)" \
+  --region us-east-1 \
+  --query 'StandardOutputContent' \
+  --output text > k3s.yaml
+
+sed -i 's|https://.*:6443|https://127.0.0.1:6443|g' k3s.yaml
 ```
 
-**Paso 3c — Usar kubectl apuntando al kubeconfig local:**
+**Paso 3c — usar el kubeconfig desde consola:**
 
 ```bash
-export KUBECONFIG=/tmp/k3s.yaml
+export KUBECONFIG=$PWD/k3s.yaml
 kubectl get nodes
 kubectl get pods -A
 ```
+
+**Paso 3d — usar el kubeconfig en Lens:**
+
+Importa el archivo `k3s.yaml` en Lens y mantén abierta la terminal del port-forward mientras uses la interfaz.
 
 ### 4. Abrir una sesión en el Worker
 
@@ -168,9 +192,9 @@ aws ssm start-session \
 
 ---
 
-## comando para conectarse por ssh a una instancia de ec2
-ssh -i C://...key.pem
+## Alternativas si Lens no conecta
 
-### pendiente crear:
-- respuesta de peticion
-- dividir en modulos
+1. Usar `kubectl` en local con el mismo `k3s.yaml` y el túnel SSM abierto. Es la opción más simple y no requiere cambiar la infraestructura.
+2. Abrir acceso directo al API Server con una IP pública o un Load Balancer. Funciona bien para pruebas, pero no es lo ideal porque expone el plano de control.
+3. Crear un bastión con SSH y copiar el `kubeconfig` desde ahí. Es útil si prefieres trabajar por SSH, pero añade una máquina más que administrar.
+4. Mantener SSM y automatizar la exportación del `kubeconfig` con un script o un output adicional de Terraform. Es la mejor opción si quieres repetir el flujo sin pasos manuales.
