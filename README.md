@@ -127,6 +127,18 @@ sudo kubectl get pods -A
 
 Este archivo sirve para ambos usos: conectarte desde consola con `kubectl` o importarlo en Lens para administración gráfica.
 
+Si prefieres un flujo automático, puedes usar el script `scripts/generate-k3s-kubeconfig.sh`:
+
+```bash
+bash scripts/generate-k3s-kubeconfig.sh
+```
+
+También admite salida y región personalizadas:
+
+```bash
+bash scripts/generate-k3s-kubeconfig.sh -o /tmp/k3s.yaml -r us-east-1
+```
+
 El flujo correcto es:
 
 1. abrir un port-forward del API Server del Master hacia `127.0.0.1:6443`
