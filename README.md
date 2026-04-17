@@ -67,6 +67,8 @@ _de acuerdo a los comparado el crea o elimina según aplique_
 
 ## Conectarse al cluster K3S después del `terraform apply`
 
+Durante la creación del clúster, el nodo master instala automáticamente Helm y despliega `aws-efs-csi-driver` desde el repositorio `https://kubernetes-sigs.github.io/aws-efs-csi-driver/` en el namespace `kube-system`.
+
 Los nodos K3S se encuentran en la **subnet privada** y no tienen IP pública.  
 El acceso de administración se realiza **exclusivamente** a través de **AWS SSM Session Manager** — no se necesita SSH ni abrir ningún puerto al exterior.
 

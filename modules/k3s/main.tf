@@ -181,6 +181,16 @@ resource "aws_instance" "k3s-master" {
     done
     echo "k3s está listo."
 
+    # Instalar Helm y desplegar el driver CSI de EFS dentro de kube-system.
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver/
+    helm repo update
+    helm upgrade --install aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver \
+      --namespace kube-system \
+      --wait \
+      --timeout 10m
+
     # Publicar el token de unión en SSM para que el Worker pueda recuperarlo
     K3S_TOKEN=$(cat /var/lib/rancher/k3s/server/node-token)
     aws ssm put-parameter \
