@@ -53,6 +53,10 @@ resource "aws_ssm_association" "deploy_n8n" {
                     value: "/n8n/"
                   - name: N8N_PORT
                     value: "5678"
+                  - name: N8N_USER_MANAGEMENT_DISABLED
+                    value: "true"
+                  - name: N8N_SECURE_COOKIE
+                    value: "false"
       ---
       apiVersion: v1
       kind: Service
