@@ -36,3 +36,8 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "efs_id" {
+  description = "ID del EFS creado por el módulo storage"
+  type        = string
+}

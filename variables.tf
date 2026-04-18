@@ -10,7 +10,7 @@ variable "aws_profile" {
 
 variable "environment_name" {
   description = "Nombre del entorno"
-  type = map(string)
+  type        = map(string)
   default = {
     "default" = "default",
     "prod"    = "prod",
@@ -34,57 +34,57 @@ variable "vpc_cidr" {
   type = map(string)
   default = {
     "default" = "216.216.0.0/22",
-    "prod" = "216.216.0.0/22",
-    "test" = "217.217.0.0/22",
-    "dev" = "218.218.0.0/22"
+    "prod"    = "216.216.0.0/22",
+    "test"    = "217.217.0.0/22",
+    "dev"     = "218.218.0.0/22"
   }
 }
 
 # Subnet frontend - publico 
 variable "subnet_public_frontend_cidr_block" {
-    description = "La Ip de la subred para el frontend"
-    type = map(string)
-    default = {
-      "default" = "216.216.0.0/24",
-      "prod" = "216.216.0.0/24",
-      "test" = "217.217.0.0/24",
-      "dev" = "218.218.0.0/24"
-    }
+  description = "La Ip de la subred para el frontend"
+  type        = map(string)
+  default = {
+    "default" = "216.216.0.0/24",
+    "prod"    = "216.216.0.0/24",
+    "test"    = "217.217.0.0/24",
+    "dev"     = "218.218.0.0/24"
+  }
 }
 # Subnet frontend - privado 
 variable "subnet_private_frontend_cidr_block" {
-    description = "La Ip de la subred para el frontend"
-    type = map(string)
-    default = {
-      "default" = "216.216.1.0/24",
-      "prod" = "216.216.1.0/24",
-      "test" = "217.217.1.0/24",
-      "dev" = "218.218.1.0/24"
-    }
+  description = "La Ip de la subred para el frontend"
+  type        = map(string)
+  default = {
+    "default" = "216.216.1.0/24",
+    "prod"    = "216.216.1.0/24",
+    "test"    = "217.217.1.0/24",
+    "dev"     = "218.218.1.0/24"
+  }
 }
 
 # Subnet backend - publico
 variable "subnet_public_backend_cidr_block" {
-    description = "La Ip de la subred para el backend"
-    type = map(string)
-    default = {
-      "default" = "216.216.2.0/24",
-      "prod" = "216.216.2.0/24",
-      "test" = "217.217.2.0/24",
-      "dev" = "218.218.2.0/24"
-    }
+  description = "La Ip de la subred para el backend"
+  type        = map(string)
+  default = {
+    "default" = "216.216.2.0/24",
+    "prod"    = "216.216.2.0/24",
+    "test"    = "217.217.2.0/24",
+    "dev"     = "218.218.2.0/24"
+  }
 }
 # Subnet backend - privado
 variable "subnet_private_backend_cidr_block" {
-    description = "La Ip de la subred para el backend"
-    type = map(string)
-    default = {
-      "default" = "216.216.3.0/24",
-      "prod" = "216.216.3.0/24",
-      "test" = "217.217.3.0/24",
-      "dev" = "218.218.3.0/24"
-    }
-} 
+  description = "La Ip de la subred para el backend"
+  type        = map(string)
+  default = {
+    "default" = "216.216.3.0/24",
+    "prod"    = "216.216.3.0/24",
+    "test"    = "217.217.3.0/24",
+    "dev"     = "218.218.3.0/24"
+  }
+}
 
 
 ###### ACL Network ######
@@ -108,5 +108,96 @@ variable "route_table_cidr_block" {
     "prod"    = "0.0.0.0/0",
     "test"    = "0.0.0.0/0",
     "dev"     = "0.0.0.0/0"
+  }
+}
+
+###### RDS PostgreSQL ######
+
+variable "rds_engine" {
+  description = "Motor de base de datos RDS"
+  type        = map(string)
+  default = {
+    "default" = "postgres"
+    "prod"    = "postgres"
+    "test"    = "postgres"
+    "dev"     = "postgres"
+  }
+}
+
+variable "rds_engine_version" {
+  description = "Version del motor RDS"
+  type        = map(string)
+  default = {
+    "default" = "17.6"
+    "prod"    = "17.6"
+    "test"    = "17.6"
+    "dev"     = "17.6"
+  }
+}
+
+variable "rds_instance_class" {
+  description = "Clase de instancia RDS"
+  type        = map(string)
+  default = {
+    "default" = "db.t4g.micro"
+    "prod"    = "db.t4g.small"
+    "test"    = "db.t4g.micro"
+    "dev"     = "db.t4g.micro"
+  }
+}
+
+variable "rds_allocated_storage" {
+  description = "Almacenamiento asignado a RDS en GB"
+  type        = map(number)
+  default = {
+    "default" = 20
+    "prod"    = 100
+    "test"    = 20
+    "dev"     = 20
+  }
+}
+
+variable "rds_db_name" {
+  description = "Nombre de la base de datos RDS"
+  type        = map(string)
+  default = {
+    "default" = "n8ndb"
+    "prod"    = "n8ndb"
+    "test"    = "n8ndb"
+    "dev"     = "n8ndb"
+  }
+}
+
+variable "rds_username" {
+  description = "Usuario administrativo de RDS"
+  type        = map(string)
+  default = {
+    "default" = "n8nadmin"
+    "prod"    = "n8nadmin"
+    "test"    = "n8nadmin"
+    "dev"     = "n8nadmin"
+  }
+}
+
+variable "rds_password" {
+  description = "Password administrativo de RDS"
+  type        = map(string)
+  sensitive   = true
+  default = {
+    "default" = "TestOnlyDefaultPass123!"
+    "prod"    = "TestOnlyProdPass123!"
+    "test"    = "TestOnlyTestPass123!"
+    "dev"     = "TestOnlyDevPass123!"
+  }
+}
+
+variable "rds_skip_final_snapshot" {
+  description = "Controla si RDS omite snapshot final al destruir"
+  type        = map(bool)
+  default = {
+    "default" = true
+    "prod"    = false
+    "test"    = true
+    "dev"     = true
   }
 }

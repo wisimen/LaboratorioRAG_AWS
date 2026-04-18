@@ -1,5 +1,210 @@
 # LaboratorioRAG_AWS
 
+Infraestructura modular en AWS con Terraform para desplegar un clúster K3S en ambiente privado con almacenamiento compartido optimizado para costos.
+
+---
+
+## Arquitectura - Módulos
+
+La infraestructura se organiza en 5 módulos independientes reutilizables:
+
+### 📡 **Módulo: Networking**
+Proporciona la base de red segura para toda la infraestructura.
+
+**Componentes:**
+- **VPC**: Red virtual con CIDR configurable
+- **Subnets**: 4 subnets (2 públicas, 2 privadas) distribuidas en 2 AZs para alta disponibilidad
+- **IGW + NAT Gateway**: Para comunicación entrante (IGW) y salida desde redes privadas (NAT)
+- **Route Tables**: Enrutamiento público y privado con separación de tráfico
+- **Network ACLs**: Control de acceso a nivel de subnet
+- **Security Groups**:
+  - `secgroup-public-frontend`: Tráfico HTTP/HTTPS público
+  - `secgroup-cluster-k3s`: Comunicación intra-cluster (solo dentro de VPC)
+  - `secgroup-k3s-ssm-endpoints`: Para VPC Interface Endpoints de SSM
+  - `efs_sg`: NFS (puerto 2049) desde toda la VPC - **crítico para almacenamiento**
+
+**VPC Endpoints (sin NAT Gateway):**
+- SSM Session Manager para administración remota
+- SSM Messages para comunicación con agentes
+- EC2 Messages para integración EC2
+
+**Recursos para Base de Datos (RDS):**
+- `rds_sg`: PostgreSQL (puerto 5432) abierto dentro de la VPC
+- `rds_subnet_group`: usa subnets privadas para desplegar RDS sin exposición pública
+
+---
+
+### 🖥️ **Módulo: EC2**
+Instancia frontend web pública para acceso de usuarios.
+
+**Características:**
+- **AMI**: Amazon Linux 2023 (actualizada automáticamente)
+- **Instancia**: t2.small en subnet pública frontend
+- **IP Pública**: Asignada automáticamente
+- **Acceso**: SSH directo desde internet (puerto 22)
+- **Caso de uso**: Servidor web, proxy inverso, dashboard de monitoreo
+
+**Outputs:**
+- IP pública
+- URL de acceso (http://)
+
+---
+
+### 💾 **Módulo: Storage**
+EFS One Zone optimizado para bajo costo - perfecto para Ollama, n8n y datos compartidos.
+
+**Características de Bajo Costo:**
+- ✅ **One Zone**: Sin replicación multi-AZ (ahorro ~40%)
+- ✅ **Sin Backups**: Política de backup deshabilitada
+- ✅ **30Gi de Capacidad**: Suficiente para Ollama + n8n + datos iniciales
+- ✅ **Transition a IA**: Datos inactivos migran automáticamente a Infrequent Access después de 30 días
+- ✅ **Encriptación**: Habilitada por defecto
+- ✅ **Throughput**: Modo Bursting (económico, automático)
+
+**Detalles Técnicos:**
+- **Mount Target**: En subnet privada backend para máxima seguridad
+- **Security Group**: NFS (2049) restringido a CIDR de VPC
+- **Integración K3S**: CSI Driver `efs.csi.aws.com` instalado automáticamente
+
+**Outputs:**
+- ID del EFS (para K3S)
+- DNS del EFS
+
+---
+
+### 🗄️ **Módulo: RDS (PostgreSQL para n8n)**
+Base de datos relacional administrada para persistencia de workflows, credenciales y estado de n8n.
+
+**Objetivo:**
+- Proveer una base de datos PostgreSQL privada, segura y parametrizable por entorno (`default`, `dev`, `test`, `prod`).
+
+**Parámetros del módulo (totalmente variables):**
+- `engine` (default: `postgres`)
+- `engine_version` (default: `17.6`)
+- `instance_class`
+- `allocated_storage`
+- `db_name`
+- `username`
+- `password`
+- `db_subnet_group_name`
+- `vpc_security_group_ids`
+- `skip_final_snapshot`
+
+**Características implementadas:**
+- ✅ RDS privado (`publicly_accessible = false`)
+- ✅ Despliegue en subnets privadas mediante `db_subnet_group_name`
+- ✅ Security Group con acceso PostgreSQL por puerto `5432`
+- ✅ Integración con K3S para consumo desde workloads internos
+- ✅ Encriptación de almacenamiento habilitada
+
+**Dónde se definen los defaults:**
+- En `variables.tf` con valores por workspace.
+
+**Outputs:**
+- Endpoint de conexión (`host:port`)
+- Host
+- Puerto
+- Nombre de base de datos
+- Usuario
+- Connection string para n8n (sensible)
+
+### Ejemplo de configuración por entornos (RDS)
+
+El proyecto ya define valores por entorno en `variables.tf` usando mapas indexados por `terraform.workspace`.
+
+Referencia rápida de defaults:
+
+- `default`:
+  - `rds_engine = postgres`
+  - `rds_engine_version = 17.6`
+  - `rds_instance_class = db.t4g.micro`
+  - `rds_allocated_storage = 20`
+  - `rds_skip_final_snapshot = true`
+- `dev`:
+  - `rds_engine = postgres`
+  - `rds_engine_version = 17.6`
+  - `rds_instance_class = db.t4g.micro`
+  - `rds_allocated_storage = 20`
+  - `rds_skip_final_snapshot = true`
+- `test`:
+  - `rds_engine = postgres`
+  - `rds_engine_version = 17.6`
+  - `rds_instance_class = db.t4g.micro`
+  - `rds_allocated_storage = 20`
+  - `rds_skip_final_snapshot = true`
+- `prod`:
+  - `rds_engine = postgres`
+  - `rds_engine_version = 17.6`
+  - `rds_instance_class = db.t4g.small`
+  - `rds_allocated_storage = 100`
+  - `rds_skip_final_snapshot = false`
+
+Si necesitas overrides puntuales, puedes usar un archivo `.tfvars` por entorno y aplicar así:
+
+```bash
+terraform workspace select dev
+terraform plan -var-file="env/dev.tfvars"
+terraform apply -var-file="env/dev.tfvars"
+```
+
+Ejemplo mínimo de `env/dev.tfvars`:
+
+```hcl
+rds_password = {
+  dev = "CambiaEstePasswordDev!"
+}
+```
+
+Recomendación para secretos:
+- No subir passwords reales al repositorio.
+- Preferir inyectar `rds_password` con variables de entorno (`TF_VAR_rds_password`) o desde un sistema de secretos en CI/CD.
+
+---
+
+### ☸️ **Módulo: K3S (Kubernetes Ligero)**
+Clúster Kubernetes optimizado para recursos limitados - ejecuta Ollama, n8n y aplicaciones Cloud-Native.
+
+**Arquitectura:**
+- **Master**: Nodo servidor K3S con etcd integrado
+- **Worker**: Nodo agente para cargas de trabajo
+- **Ubicación**: Subnet privada backend (sin IPs públicas)
+- **Acceso**: Solo vía AWS SSM Session Manager (sin SSH abierto)
+
+**Auto-Instalación:**
+- ✅ K3S Server (v1.x latest)
+- ✅ AWS EFS CSI Driver vía Helm (para montar EFS)
+- ✅ PersistentVolume `efs-pv-shared` (30Gi, ReadWriteMany)
+- ✅ PersistentVolumeClaim `efs-pvc-shared` reservado para aplicaciones
+
+**Características de Seguridad:**
+- Comunicación Kubernetes (6443) solo dentro de VPC
+- Flannel VXLAN para overlay network
+- Kubelet metrics internos (10250)
+- NodePort services limitados a VPC (30000-32767)
+
+**Outputs:**
+- Instance IDs (para SSM Session Manager)
+- Token de unión guardado en AWS SSM Parameter Store
+- IP privada del Master (redundancia)
+
+---
+
+## Flujo de Despliegue
+
+```
+Networking (VPC + Security Groups)
+    ↓
+EC2 (Frontend Público)
+    ↓
+Storage (EFS One Zone)
+    ↓
+RDS (PostgreSQL Privado para n8n)
+  ↓
+K3S (Master + Worker con Almacenamiento Persistente)
+```
+
+---
+
 ## Lista de comandos
 
 1. Añadir configuracion
@@ -59,6 +264,36 @@ _de acuerdo a los comparado el crea o elimina según aplique_
 11. Eliminar lo desplegado
 `terraform destroy`
 
+## Variables TF_VAR de prueba
+
+Se incluye un script auxiliar para cargar variables TF_VAR con valores de testing:
+
+- [scripts/set-tfvars-test.sh](scripts/set-tfvars-test.sh)
+
+Este script es solo para pruebas locales y laboratorios.
+No debe usarse en producción porque incluye credenciales dummy.
+
+Uso recomendado en la misma shell:
+
+```bash
+source scripts/set-tfvars-test.sh
+```
+
+Verificación rápida:
+
+```bash
+echo "$TF_VAR_rds_engine"
+echo "$TF_VAR_rds_password"
+```
+
+Para limpiar variables de prueba en la sesión actual:
+
+```bash
+unset TF_VAR_rds_engine TF_VAR_rds_engine_version TF_VAR_rds_instance_class
+unset TF_VAR_rds_allocated_storage TF_VAR_rds_db_name TF_VAR_rds_username
+unset TF_VAR_rds_password TF_VAR_rds_skip_final_snapshot
+```
+
 
 
 ## Link a redes
@@ -108,6 +343,15 @@ También puedes ver todos los comandos listos para copiar:
 terraform output k3s_ssm_connect_master
 terraform output k3s_ssm_connect_worker
 terraform output k3s_kubectl_port_forward
+terraform output rds_endpoint
+terraform output rds_db_name
+terraform output rds_username
+```
+
+Para ver la cadena de conexión sensible:
+
+```bash
+terraform output rds_connection_string
 ```
 
 ### 2. Abrir una sesión de terminal en el Master
@@ -125,7 +369,43 @@ sudo kubectl get nodes
 sudo kubectl get pods -A
 ```
 
-### 3. Generar el `kubeconfig` para Lens o `kubectl`
+### 3. Acceder a n8n y Ollama API desde tu equipo local (AWS SSM)
+
+Como el master K3S esta en subnet privada, desde tu equipo local debes usar un tunel SSM al puerto 80 del master.
+
+Puedes consultar los outputs de URL (referenciales dentro de la VPC):
+
+```bash
+terraform output deploy_n8n_url
+terraform output deploy_ollama_url
+```
+
+Abre el tunel SSM (deja esta terminal abierta):
+
+```bash
+aws ssm start-session \
+  --target $(terraform output -raw k3s_master_instance_id) \
+  --region us-east-1 \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["80"],"localPortNumber":["8080"]}'
+```
+
+Con el tunel activo, accede desde tu navegador o cliente local:
+
+```text
+http://127.0.0.1:8080/n8n
+http://127.0.0.1:8080/ollama
+```
+
+Prueba rapida de la API de Ollama:
+
+```bash
+curl http://127.0.0.1:8080/ollama/api/tags
+```
+
+Si necesitas HTTPS (443), debes configurar certificado/TLS en Traefik y abrir un tunel SSM al puerto 443.
+
+### 4. Generar el `kubeconfig` para Lens o `kubectl`
 
 Este archivo sirve para ambos usos: conectarte desde consola con `kubectl` o importarlo en Lens para administración gráfica.
 
@@ -148,7 +428,7 @@ El flujo correcto es:
 3. cambiar el servidor del `kubeconfig` a `https://127.0.0.1:6443`
 4. importar ese archivo en Lens o usarlo con `kubectl`
 
-**Paso 3a — dejar abierto el túnel al puerto 6443:**
+**Paso 4a — dejar abierto el túnel al puerto 6443:**
 
 ```bash
 aws ssm start-session \
@@ -158,7 +438,7 @@ aws ssm start-session \
   --parameters '{"portNumber":["6443"],"localPortNumber":["6443"]}'
 ```
 
-**Paso 3b — exportar el kubeconfig desde el Master:**
+**Paso 4b — exportar el kubeconfig desde el Master:**
 
 ```bash
 CMD_ID=$(aws ssm send-command \
@@ -184,7 +464,7 @@ aws ssm get-command-invocation \
 sed -i 's|https://.*:6443|https://127.0.0.1:6443|g' k3s.yaml
 ```
 
-**Paso 3c — usar el kubeconfig desde consola:**
+**Paso 4c — usar el kubeconfig desde consola:**
 
 ```bash
 export KUBECONFIG=$PWD/k3s.yaml
@@ -192,11 +472,11 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-**Paso 3d — usar el kubeconfig en Lens:**
+**Paso 4d — usar el kubeconfig en Lens:**
 
 Importa el archivo `k3s.yaml` en Lens y mantén abierta la terminal del port-forward mientras uses la interfaz.
 
-### 4. Abrir una sesión en el Worker
+### 5. Abrir una sesión en el Worker
 
 ```bash
 aws ssm start-session \

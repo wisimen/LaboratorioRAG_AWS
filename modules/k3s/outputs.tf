@@ -42,16 +42,6 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.k3s-storage.arn
 }
 
-output "efs_id" {
-  description = "ID del sistema de archivos EFS para volúmenes persistentes"
-  value       = aws_efs_file_system.k3s-efs.id
-}
-
-output "efs_dns_name" {
-  description = "Nombre DNS del EFS para montar en los pods (Persistent Volumes)"
-  value       = aws_efs_file_system.k3s-efs.dns_name
-}
-
 output "ssm_connect_master" {
   description = "Comando SSM Session Manager para conectarse al nodo Master"
   value       = "aws ssm start-session --target ${aws_instance.k3s-master.id} --region ${var.aws_region}"
@@ -65,4 +55,9 @@ output "ssm_connect_worker" {
 output "kubectl_port_forward" {
   description = "Comando para hacer port-forward del API Server K3S vía SSM (requiere plugin session-manager-plugin)"
   value       = "aws ssm start-session --target ${aws_instance.k3s-master.id} --region ${var.aws_region} --document-name AWS-StartPortForwardingSession --parameters '{\"portNumber\":[\"6443\"],\"localPortNumber\":[\"6443\"]}'"
+}
+
+output "k3s_security_group_id" {
+  description = "ID del security group del cluster K3S"
+  value       = aws_security_group.secgroup-cluster-k3s.id
 }

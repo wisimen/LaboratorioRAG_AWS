@@ -21,6 +21,6 @@ terraform {
 
 # Configure and downloading plugins for aws
 provider "aws" {
-    region = var.aws_region
-    profile = var.aws_profile
+  region  = var.aws_region
+  profile = var.aws_profile
 }

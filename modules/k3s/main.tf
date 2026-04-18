@@ -51,6 +51,24 @@ resource "aws_security_group" "secgroup-cluster-k3s" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # Ingress HTTP para acceso por path (/n8n, /ollama) dentro de la VPC
+  ingress {
+    description = "Ingress HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Ingress HTTPS para acceso por path (/n8n, /ollama) dentro de la VPC
+  ingress {
+    description = "Ingress HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
   # Todo el tráfico saliente permitido (necesario para NAT → internet y VPC Endpoints)
   egress {
     description = "Permitir toda la salida"
@@ -164,8 +182,7 @@ resource "aws_instance" "k3s-master" {
     curl -sfL https://get.k3s.io | \
       INSTALL_K3S_VERSION="${var.k3s_version}" \
       sh -s - server \
-      --write-kubeconfig-mode=644 \
-      --disable=traefik
+      --write-kubeconfig-mode=644
 
     # Esperar a que k3s esté completamente listo antes de leer el token (máx. 5 min)
     echo "Esperando a que el servicio k3s esté activo..."
@@ -190,6 +207,41 @@ resource "aws_instance" "k3s-master" {
       --namespace kube-system \
       --wait \
       --timeout 10m
+
+    # Crear PV/PVC base para cargas que usarán almacenamiento compartido (ollama/n8n).
+    cat >/tmp/k3s-efs-pv-pvc.yaml <<EOM
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: efs-pv-shared
+    spec:
+      capacity:
+        storage: 30Gi
+      volumeMode: Filesystem
+      accessModes:
+        - ReadWriteMany
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: ""
+      csi:
+        driver: efs.csi.aws.com
+        volumeHandle: ${var.efs_id}
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: efs-pvc-shared
+      namespace: default
+    spec:
+      accessModes:
+        - ReadWriteMany
+      storageClassName: ""
+      resources:
+        requests:
+          storage: 30Gi
+      volumeName: efs-pv-shared
+    EOM
+
+    kubectl apply -f /tmp/k3s-efs-pv-pvc.yaml --kubeconfig=/etc/rancher/k3s/k3s.yaml
 
     # Publicar el token de unión en SSM para que el Worker pueda recuperarlo
     K3S_TOKEN=$(cat /var/lib/rancher/k3s/server/node-token)
