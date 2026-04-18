@@ -46,6 +46,15 @@ resource "aws_db_instance" "n8n_postgres" {
     Application = "n8n"
   }
 
+  # Keep imported/existing DB instances without forcing replacement on immutable drift.
+  lifecycle {
+    ignore_changes = [
+      kms_key_id,
+      iops,
+      storage_throughput,
+    ]
+  }
+
   depends_on = [aws_security_group_rule.allow_postgres]
 }
 
