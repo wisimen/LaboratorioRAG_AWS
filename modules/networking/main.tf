@@ -26,7 +26,7 @@ resource "aws_subnet" "subnet-public-frontend" {
 resource "aws_subnet" "subnet-private-frontend" {
   vpc_id                  = aws_vpc.vpc-itm-rag-legal.id
   cidr_block              = var.subnet_private_frontend_cidr_block
-  availability_zone       = var.aws_availability_zone_2
+  availability_zone       = var.aws_availability_zone_1
   map_public_ip_on_launch = false
 
   tags = {
