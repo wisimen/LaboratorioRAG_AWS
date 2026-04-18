@@ -116,6 +116,19 @@ module "deployments" {
   depends_on = [module.k3s, module.rds]
 }
 
+########## Módulo Verify (health checks n8n + ollama) ##########
+
+module "verify" {
+  source = "./modules/verify"
+
+  master_instance_id    = module.k3s.master_instance_id
+  aws_region            = var.aws_region
+  n8n_association_id    = module.deployments.n8n_association_id
+  ollama_association_id = module.deployments.ollama_association_id
+
+  depends_on = [module.deployments]
+}
+
 output "k3s_master_instance_id" {
   description = "ID de la instancia Master K3S (usar con SSM Session Manager)"
   value       = module.k3s.master_instance_id
@@ -214,4 +227,9 @@ output "deploy_n8n_url" {
 output "deploy_ollama_url" {
   description = "URL base para acceder a Ollama via ingress"
   value       = module.deployments.ollama_url
+}
+
+output "verify_id" {
+  description = "ID interno de la verificacion post-deploy"
+  value       = module.verify.verification_id
 }

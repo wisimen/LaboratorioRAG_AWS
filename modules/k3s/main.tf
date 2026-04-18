@@ -176,13 +176,16 @@ resource "aws_instance" "k3s-master" {
 
   user_data = <<-EOF
     #!/bin/bash
-    set -e
+    set -euo pipefail
 
     # Instalar k3s como servidor (Master) — versión fijada para reproducibilidad
-    curl -sfL https://get.k3s.io | \
-      INSTALL_K3S_VERSION="${var.k3s_version}" \
-      sh -s - server \
+    INSTALLER=/tmp/install-k3s.sh
+    curl -sfL --retry 6 --retry-delay 5 --retry-all-errors https://get.k3s.io -o "$INSTALLER"
+    chmod +x "$INSTALLER"
+    INSTALL_K3S_VERSION="${var.k3s_version}" \
+      sh "$INSTALLER" server \
       --write-kubeconfig-mode=644
+    rm -f "$INSTALLER"
 
     # Esperar a que k3s esté completamente listo antes de leer el token (máx. 5 min)
     echo "Esperando a que el servicio k3s esté activo..."
@@ -191,6 +194,8 @@ resource "aws_instance" "k3s-master" {
       K3S_WAIT=$((K3S_WAIT + 10))
       if [ $K3S_WAIT -ge 300 ]; then
         echo "ERROR: k3s no estuvo listo en 5 minutos, abortando."
+        systemctl status k3s --no-pager || true
+        journalctl -u k3s -n 100 --no-pager || true
         exit 1
       fi
       echo "k3s aún no está listo, reintentando en 10s... ($K3S_WAIT/300s)"
@@ -284,7 +289,7 @@ resource "aws_instance" "k3s-worker" {
 
   user_data = <<-EOF
     #!/bin/bash
-    set -e
+    set -euo pipefail
 
     # Esperar a que el Master publique el token en SSM Parameter Store
     MAX_RETRIES=30
@@ -315,11 +320,14 @@ resource "aws_instance" "k3s-worker" {
       --output text)
 
     # Instalar k3s en modo agente (Worker) — versión fijada para reproducibilidad
-    curl -sfL https://get.k3s.io | \
-      INSTALL_K3S_VERSION="${var.k3s_version}" \
+    INSTALLER=/tmp/install-k3s.sh
+    curl -sfL --retry 6 --retry-delay 5 --retry-all-errors https://get.k3s.io -o "$INSTALLER"
+    chmod +x "$INSTALLER"
+    INSTALL_K3S_VERSION="${var.k3s_version}" \
       K3S_URL="https://$MASTER_IP:6443" \
       K3S_TOKEN="$K3S_TOKEN" \
-      sh -
+      sh "$INSTALLER"
+    rm -f "$INSTALLER"
   EOF
 
   # El Worker debe crearse después del Master para que el token ya esté en SSM

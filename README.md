@@ -356,10 +356,27 @@ terraform output rds_connection_string
 
 ### 2. Abrir una sesión de terminal en el Master
 
+**Bash**
+
 ```bash
 aws ssm start-session \
   --target $(terraform output -raw k3s_master_instance_id) \
   --region us-east-1
+```
+
+**PowerShell**
+
+```powershell
+$MasterId = terraform output -raw k3s_master_instance_id
+aws ssm start-session `
+  --target $MasterId `
+  --region us-east-1
+```
+
+**CMD**
+
+```bat
+for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do aws ssm start-session --target %i --region us-east-1
 ```
 
 Una vez dentro puedes ejecutar, por ejemplo:
@@ -382,12 +399,31 @@ terraform output deploy_ollama_url
 
 Abre el tunel SSM (deja esta terminal abierta):
 
+**Bash**
+
 ```bash
 aws ssm start-session \
   --target $(terraform output -raw k3s_master_instance_id) \
   --region us-east-1 \
   --document-name AWS-StartPortForwardingSession \
   --parameters '{"portNumber":["80"],"localPortNumber":["8080"]}'
+```
+
+**PowerShell**
+
+```powershell
+$MasterId = terraform output -raw k3s_master_instance_id
+aws ssm start-session `
+  --target $MasterId `
+  --region us-east-1 `
+  --document-name AWS-StartPortForwardingSession `
+  --parameters '{"portNumber":["80"],"localPortNumber":["8080"]}'
+```
+
+**CMD**
+
+```bat
+for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do aws ssm start-session --target %i --region us-east-1 --document-name AWS-StartPortForwardingSession --parameters "{\"portNumber\":[\"80\"],\"localPortNumber\":[\"8080\"]}"
 ```
 
 Con el tunel activo, accede desde tu navegador o cliente local:
@@ -430,6 +466,8 @@ El flujo correcto es:
 
 **Paso 4a — dejar abierto el túnel al puerto 6443:**
 
+**Bash**
+
 ```bash
 aws ssm start-session \
   --target $(terraform output -raw k3s_master_instance_id) \
@@ -438,7 +476,26 @@ aws ssm start-session \
   --parameters '{"portNumber":["6443"],"localPortNumber":["6443"]}'
 ```
 
+**PowerShell**
+
+```powershell
+$MasterId = terraform output -raw k3s_master_instance_id
+aws ssm start-session `
+  --target $MasterId `
+  --region us-east-1 `
+  --document-name AWS-StartPortForwardingSession `
+  --parameters '{"portNumber":["6443"],"localPortNumber":["6443"]}'
+```
+
+**CMD**
+
+```bat
+for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do aws ssm start-session --target %i --region us-east-1 --document-name AWS-StartPortForwardingSession --parameters "{\"portNumber\":[\"6443\"],\"localPortNumber\":[\"6443\"]}"
+```
+
 **Paso 4b — exportar el kubeconfig desde el Master:**
+
+**Bash**
 
 ```bash
 CMD_ID=$(aws ssm send-command \
@@ -464,6 +521,44 @@ aws ssm get-command-invocation \
 sed -i 's|https://.*:6443|https://127.0.0.1:6443|g' k3s.yaml
 ```
 
+**PowerShell**
+
+```powershell
+$MasterId = terraform output -raw k3s_master_instance_id
+$CmdId = aws ssm send-command `
+  --instance-ids $MasterId `
+  --region us-east-1 `
+  --document-name AWS-RunShellScript `
+  --parameters 'commands=["sudo cat /etc/rancher/k3s/k3s.yaml"]' `
+  --query 'Command.CommandId' `
+  --output text
+
+aws ssm wait command-executed `
+  --command-id $CmdId `
+  --instance-id $MasterId `
+  --region us-east-1
+
+aws ssm get-command-invocation `
+  --command-id $CmdId `
+  --instance-id $MasterId `
+  --region us-east-1 `
+  --query 'StandardOutputContent' `
+  --output text | Out-File -Encoding ascii k3s.yaml
+
+(Get-Content k3s.yaml) -replace 'https://.*:6443', 'https://127.0.0.1:6443' | Set-Content -Encoding ascii k3s.yaml
+```
+
+**CMD**
+
+```bat
+setlocal EnableDelayedExpansion
+for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do set MASTER_ID=%i
+for /f "delims=" %c in ('aws ssm send-command --instance-ids "!MASTER_ID!" --region us-east-1 --document-name AWS-RunShellScript --parameters commands="[\"sudo cat /etc/rancher/k3s/k3s.yaml\"]" --query "Command.CommandId" --output text') do set CMD_ID=%c
+aws ssm wait command-executed --command-id "!CMD_ID!" --instance-id "!MASTER_ID!" --region us-east-1
+aws ssm get-command-invocation --command-id "!CMD_ID!" --instance-id "!MASTER_ID!" --region us-east-1 --query "StandardOutputContent" --output text > k3s.yaml
+powershell -NoProfile -Command "(Get-Content k3s.yaml) -replace 'https://.*:6443','https://127.0.0.1:6443' | Set-Content -Encoding ascii k3s.yaml"
+```
+
 **Paso 4c — usar el kubeconfig desde consola:**
 
 ```bash
@@ -478,10 +573,27 @@ Importa el archivo `k3s.yaml` en Lens y mantén abierta la terminal del port-for
 
 ### 5. Abrir una sesión en el Worker
 
+**Bash**
+
 ```bash
 aws ssm start-session \
   --target $(terraform output -raw k3s_worker_instance_id) \
   --region us-east-1
+```
+
+**PowerShell**
+
+```powershell
+$WorkerId = terraform output -raw k3s_worker_instance_id
+aws ssm start-session `
+  --target $WorkerId `
+  --region us-east-1
+```
+
+**CMD**
+
+```bat
+for /f "delims=" %i in ('terraform output -raw k3s_worker_instance_id') do aws ssm start-session --target %i --region us-east-1
 ```
 
 ---
