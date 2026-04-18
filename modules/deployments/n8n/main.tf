@@ -18,6 +18,14 @@ resource "aws_ssm_association" "deploy_n8n" {
     db_name     = var.db_name
     db_user     = var.db_user
     db_password = var.db_password
+    })}
+      ---
+      ${templatefile("${path.module}/service.yaml", {
+    namespace = var.namespace
+    })}
+      ---
+      ${templatefile("${path.module}/ingress.yaml", {
+    namespace = var.namespace
 })}
       YAML
 

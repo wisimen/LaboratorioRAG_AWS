@@ -14,6 +14,18 @@ resource "aws_ssm_association" "deploy_ollama" {
       cat >/tmp/ollama-deployment.yaml <<'YAML'
       ${templatefile("${path.module}/deployment.yaml", {
     namespace = var.namespace
+    })}
+      ---
+      ${templatefile("${path.module}/service.yaml", {
+    namespace = var.namespace
+    })}
+      ---
+      ${templatefile("${path.module}/middleware.yaml", {
+    namespace = var.namespace
+    })}
+      ---
+      ${templatefile("${path.module}/ingress.yaml", {
+    namespace = var.namespace
 })}
       YAML
 
