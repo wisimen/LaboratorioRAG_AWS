@@ -8,10 +8,9 @@ resource "aws_db_instance" "n8n_postgres" {
   engine_version = var.engine_version
 
   # Instancia y almacenamiento
-  instance_class     = var.instance_class
-  allocated_storage  = var.allocated_storage
-  storage_type       = "gp3"
-  storage_throughput = 125
+  instance_class    = var.instance_class
+  allocated_storage = var.allocated_storage
+  storage_type      = "gp3"
 
   # Credenciales
   username = var.username
