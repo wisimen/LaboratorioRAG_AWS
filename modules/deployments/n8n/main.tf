@@ -53,26 +53,30 @@ resource "aws_ssm_association" "deploy_n8n" {
         cat /tmp/n8n-kubectl.log || true
       }
 
-      cat >/tmp/n8n-deployment.yaml <<'YAML'
-      ${templatefile("${path.module}/deployment.yaml", {
+cat >/tmp/n8n-deployment.yaml <<'YAML'
+${templatefile("${path.module}/deployment.yaml", {
     namespace   = var.namespace
     db_host     = var.db_host
     db_name     = var.db_name
     db_user     = var.db_user
     db_password = var.db_password
     })}
-      ---
-      ${templatefile("${path.module}/service.yaml", {
+---
+${templatefile("${path.module}/service.yaml", {
     namespace = var.namespace
     })}
-      ---
-      ${templatefile("${path.module}/ingress.yaml", {
+---
+${templatefile("${path.module}/middleware.yaml", {
+  namespace = var.namespace
+})}
+---
+${templatefile("${path.module}/ingress.yaml", {
     namespace = var.namespace
 })}
-      YAML
+YAML
 
-  wait_for_k3s_api
-  apply_with_retry /tmp/n8n-deployment.yaml
+wait_for_k3s_api
+apply_with_retry /tmp/n8n-deployment.yaml
       EOT
 }
 }

@@ -56,8 +56,3 @@ output "kubectl_port_forward" {
   description = "Comando para hacer port-forward del API Server K3S vía SSM (requiere plugin session-manager-plugin)"
   value       = "aws ssm start-session --target ${aws_instance.k3s-master.id} --region ${var.aws_region} --document-name AWS-StartPortForwardingSession --parameters '{\"portNumber\":[\"6443\"],\"localPortNumber\":[\"6443\"]}'"
 }
-
-output "k3s_security_group_id" {
-  description = "ID del security group del cluster K3S"
-  value       = aws_security_group.secgroup-cluster-k3s.id
-}

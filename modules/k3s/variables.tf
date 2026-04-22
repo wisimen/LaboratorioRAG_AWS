@@ -5,8 +5,13 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "ID de la subnet PRIVADA donde se desplegarán las instancias K3S y los VPC Endpoints"
+variable "master_subnet_id" {
+  description = "ID de la subnet donde se desplegará el nodo Master K3S"
+  type        = string
+}
+
+variable "worker_subnet_id" {
+  description = "ID de la subnet PRIVADA donde se desplegará el nodo Worker K3S"
   type        = string
 }
 
@@ -40,4 +45,15 @@ variable "aws_region" {
 variable "efs_id" {
   description = "ID del EFS creado por el módulo storage"
   type        = string
+}
+
+variable "k3s_security_group_id" {
+  description = "ID del security group del cluster K3S creado en networking"
+  type        = string
+}
+
+variable "root_volume_size_gb" {
+  description = "Tamaño del volumen raíz EBS en GB para nodos K3S"
+  type        = number
+  default     = 80
 }

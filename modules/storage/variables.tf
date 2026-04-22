@@ -3,18 +3,13 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Subnet privada donde se crea el mount target"
-  type        = string
+variable "subnet_ids" {
+  description = "Lista de subnets donde se crean mount targets de EFS (una por AZ)"
+  type        = list(string)
 }
 
 variable "efs_sg_id" {
   description = "Security Group para EFS"
-  type        = string
-}
-
-variable "availability_az" {
-  description = "AZ para EFS One Zone"
   type        = string
 }
 

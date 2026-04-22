@@ -12,6 +12,8 @@ module "networking" {
   aws_availability_zone_1            = var.aws_availability_zone_1
   aws_availability_zone_2            = var.aws_availability_zone_2
   environment                        = var.environment_name[terraform.workspace]
+  aws_region                         = var.aws_region
+  admin_ip                           = var.admin_ip
 }
 
 ########## Data Source: AMI ##########
@@ -57,11 +59,30 @@ output "frontend_url" {
 module "storage" {
   source = "./modules/storage"
 
-  vpc_id          = module.networking.vpc_id
-  subnet_id       = module.networking.subnet_private_backend_id
-  efs_sg_id       = module.networking.efs_sg_id
-  availability_az = var.aws_availability_zone_2
-  environment     = var.environment_name[terraform.workspace]
+  vpc_id      = module.networking.vpc_id
+  subnet_ids  = [module.networking.subnet_public_backend_id, module.networking.subnet_private_backend_id]
+  efs_sg_id   = module.networking.efs_sg_id
+  environment = var.environment_name[terraform.workspace]
+}
+
+moved {
+  from = module.k3s.aws_security_group.secgroup-k3s-ssm-endpoints
+  to   = module.networking.aws_security_group.secgroup-k3s-ssm-endpoints
+}
+
+moved {
+  from = module.k3s.aws_vpc_endpoint.ssm
+  to   = module.networking.aws_vpc_endpoint.ssm
+}
+
+moved {
+  from = module.k3s.aws_vpc_endpoint.ssmmessages
+  to   = module.networking.aws_vpc_endpoint.ssmmessages
+}
+
+moved {
+  from = module.k3s.aws_vpc_endpoint.ec2messages
+  to   = module.networking.aws_vpc_endpoint.ec2messages
 }
 
 ########## Módulo RDS ##########
@@ -78,7 +99,6 @@ module "rds" {
   password                 = var.rds_password[terraform.workspace]
   db_subnet_group_name     = module.networking.rds_subnet_group_name
   vpc_security_group_ids   = module.networking.rds_sg_id
-  source_security_group_id = module.k3s.k3s_security_group_id
   skip_final_snapshot      = var.rds_skip_final_snapshot[terraform.workspace]
   environment              = var.environment_name[terraform.workspace]
 
@@ -92,11 +112,14 @@ module "k3s" {
 
   vpc_id      = module.networking.vpc_id
   vpc_cidr    = module.networking.vpc_cidr
-  subnet_id   = module.networking.subnet_private_backend_id
+  master_subnet_id = module.networking.subnet_public_backend_id
+  worker_subnet_id = module.networking.subnet_private_backend_id
   environment = var.environment_name[terraform.workspace]
   ami_id      = data.aws_ami.amazon_linux_2023.id
   aws_region  = var.aws_region
   efs_id      = module.storage.efs_id
+  k3s_security_group_id = module.networking.k3s_security_group_id
+  root_volume_size_gb = var.k3s_root_volume_size_gb
 }
 
 ########## Módulo Deployments (n8n + ollama) ##########
@@ -105,6 +128,7 @@ module "deployments" {
   source = "./modules/deployments"
 
   master_instance_id    = module.k3s.master_instance_id
+  k3s_master_public_ip  = module.k3s.master_public_ip
   k3s_master_private_ip = module.k3s.master_private_ip
   aws_region            = var.aws_region
   namespace             = "default"
@@ -137,6 +161,11 @@ output "k3s_master_instance_id" {
 output "k3s_master_public_ip" {
   description = "IP pública del Master K3S"
   value       = module.k3s.master_public_ip
+}
+
+output "k3s_master_private_ip" {
+  description = "IP privada del Master K3S"
+  value       = module.k3s.master_private_ip
 }
 
 output "k3s_worker_instance_id" {
@@ -220,13 +249,23 @@ output "deploy_ollama_association_id" {
 }
 
 output "deploy_n8n_url" {
-  description = "URL base para acceder a n8n via ingress"
+  description = "URL pública base para acceder a n8n via ingress"
   value       = module.deployments.n8n_url
 }
 
+output "deploy_n8n_url_private" {
+  description = "URL privada base para acceder a n8n via ingress"
+  value       = module.deployments.n8n_url_private
+}
+
 output "deploy_ollama_url" {
-  description = "URL base para acceder a Ollama via ingress"
+  description = "URL pública base para acceder a Ollama via ingress"
   value       = module.deployments.ollama_url
+}
+
+output "deploy_ollama_url_private" {
+  description = "URL privada base para acceder a Ollama via ingress"
+  value       = module.deployments.ollama_url_private
 }
 
 output "verify_id" {

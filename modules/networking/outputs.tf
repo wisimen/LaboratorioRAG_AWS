@@ -33,6 +33,11 @@ output "secgroup_public_frontend_id" {
   value       = aws_security_group.secgroup-public-frontend.id
 }
 
+output "k3s_security_group_id" {
+  description = "ID del security group del cluster K3S"
+  value       = aws_security_group.secgroup-cluster-k3s.id
+}
+
 output "efs_sg_id" {
   description = "ID del security group para EFS"
   value       = aws_security_group.efs_sg.id

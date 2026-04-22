@@ -11,156 +11,9 @@ data "aws_iam_instance_profile" "lab_profile" {
   name = "LabInstanceProfile"
 }
 
-resource "aws_security_group" "secgroup-cluster-k3s" {
-  description = "Security Group para los nodos del cluster K3S (red privada, sin SSH)"
-  vpc_id      = var.vpc_id
-
-  # API Server de Kubernetes (solo desde dentro de la VPC)
-  ingress {
-    description = "Kubernetes API Server"
-    from_port   = 6443
-    to_port     = 6443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # Flannel VXLAN (overlay network entre nodos)
-  ingress {
-    description = "Flannel VXLAN"
-    from_port   = 8472
-    to_port     = 8472
-    protocol    = "udp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # Métricas de Kubelet
-  ingress {
-    description = "Kubelet metrics"
-    from_port   = 10250
-    to_port     = 10250
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # NodePort services (solo desde dentro de la VPC)
-  ingress {
-    description = "NodePort Services (interno VPC)"
-    from_port   = 30000
-    to_port     = 32767
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # Ingress HTTP para acceso por path (/n8n, /ollama) dentro de la VPC
-  ingress {
-    description = "Ingress HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # Ingress HTTPS para acceso por path (/n8n, /ollama) dentro de la VPC
-  ingress {
-    description = "Ingress HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  # Todo el tráfico saliente permitido (necesario para NAT → internet y VPC Endpoints)
-  egress {
-    description = "Permitir toda la salida"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "secgroup-cluster-k3s-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 
 ########## Security Group - VPC Endpoints SSM ##########
 # Permite tráfico HTTPS desde los nodos K3S hacia los VPC Interface Endpoints de SSM
-
-resource "aws_security_group" "secgroup-k3s-ssm-endpoints" {
-  description = "Security Group para los VPC Endpoints de SSM del cluster K3S"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description     = "HTTPS desde nodos K3S hacia VPC Endpoints SSM"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.secgroup-cluster-k3s.id]
-  }
-
-  egress {
-    description = "Permitir toda la salida"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "secgroup-k3s-ssm-endpoints-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-
-########## VPC Interface Endpoints - SSM Session Manager ##########
-# Permiten que las instancias en la subnet PRIVADA se comuniquen con SSM, SSM Session
-# Manager y EC2 Messages sin necesidad de salir a internet a través del NAT Gateway.
-
-resource "aws_vpc_endpoint" "ssm" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ssm"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name        = "vpce-ssm-k3s-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_vpc_endpoint" "ssmmessages" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name        = "vpce-ssmmessages-k3s-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_vpc_endpoint" "ec2messages" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = [var.subnet_id]
-  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
-  private_dns_enabled = true
-
-  tags = {
-    Name        = "vpce-ec2messages-k3s-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 
 ########## EC2 K3S Master ##########
 # / -> VPC -> Subnet -> EC2 (Master)
@@ -168,11 +21,17 @@ resource "aws_vpc_endpoint" "ec2messages" {
 
 resource "aws_instance" "k3s-master" {
   ami                         = var.ami_id
-  instance_type               = "t3.micro"
-  subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.secgroup-cluster-k3s.id]
+  instance_type               = "t3.small"
+  subnet_id                   = var.master_subnet_id
+  vpc_security_group_ids      = [var.k3s_security_group_id]
   iam_instance_profile        = data.aws_iam_instance_profile.lab_profile.name
-  associate_public_ip_address = false # Subnet privada — sin IP pública
+  associate_public_ip_address = true # Subnet publica — con IP pública
+
+  root_block_device {
+    volume_size = var.root_volume_size_gb
+    volume_type = "gp3"
+    encrypted   = true
+  }
 
   user_data = <<-EOF
     #!/bin/bash
@@ -281,11 +140,17 @@ resource "aws_instance" "k3s-master" {
 
 resource "aws_instance" "k3s-worker" {
   ami                         = var.ami_id
-  instance_type               = "t3.micro"
-  subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.secgroup-cluster-k3s.id]
+  instance_type               = "t3.small"
+  subnet_id                   = var.worker_subnet_id
+  vpc_security_group_ids      = [var.k3s_security_group_id]
   iam_instance_profile        = data.aws_iam_instance_profile.lab_profile.name
   associate_public_ip_address = false # Subnet privada — sin IP pública
+
+  root_block_device {
+    volume_size = var.root_volume_size_gb
+    volume_type = "gp3"
+    encrypted   = true
+  }
 
   user_data = <<-EOF
     #!/bin/bash
@@ -338,4 +203,91 @@ resource "aws_instance" "k3s-worker" {
     Environment = var.environment
     Role        = "worker"
   }
+}
+
+resource "aws_ssm_association" "apply_efs_shared_pv" {
+  name = "AWS-RunShellScript"
+
+  association_name = "k3s-efs-pv-${replace(aws_instance.k3s-master.id, "i-", "")}" 
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.k3s-master.id]
+  }
+
+  parameters = {
+    commands = <<-EOT
+      set -euo pipefail
+
+      KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
+      TARGET_EFS_ID="${var.efs_id}"
+
+      wait_for_k3s_api() {
+        local max_retries=30
+        local sleep_seconds=10
+        local attempt=1
+
+        until sudo kubectl --kubeconfig="$KUBECONFIG_PATH" get --raw='/readyz' >/dev/null 2>&1; do
+          if [ "$attempt" -ge "$max_retries" ]; then
+            echo "ERROR: API de K3S no estuvo lista tras $${max_retries} intentos"
+            sudo systemctl status k3s --no-pager || true
+            sudo journalctl -u k3s -n 100 --no-pager || true
+            return 1
+          fi
+          attempt=$((attempt + 1))
+          sleep "$sleep_seconds"
+        done
+      }
+
+      wait_for_k3s_api
+
+      CURRENT_HANDLE=$(sudo kubectl get pv efs-pv-shared --kubeconfig="$KUBECONFIG_PATH" -o jsonpath='{.spec.csi.volumeHandle}' 2>/dev/null || true)
+
+      # Si el PV apunta a otro filesystem, liberamos PVC/PV para recrearlo con el EFS actual.
+      if [ -n "$CURRENT_HANDLE" ] && [ "$CURRENT_HANDLE" != "$TARGET_EFS_ID" ]; then
+        sudo kubectl -n default scale deployment/ollama --replicas=0 --kubeconfig="$KUBECONFIG_PATH" >/dev/null 2>&1 || true
+        sudo kubectl delete pvc efs-pvc-shared -n default --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
+        sudo kubectl delete pv efs-pv-shared --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
+      fi
+
+      cat >/tmp/k3s-efs-pv-pvc.yaml <<YAML
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: efs-pv-shared
+      spec:
+        capacity:
+          storage: 30Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: ""
+        csi:
+          driver: efs.csi.aws.com
+          volumeHandle: ${var.efs_id}
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: efs-pvc-shared
+        namespace: default
+      spec:
+        accessModes:
+          - ReadWriteMany
+        storageClassName: ""
+        resources:
+          requests:
+            storage: 30Gi
+        volumeName: efs-pv-shared
+      YAML
+
+      sudo kubectl apply -f /tmp/k3s-efs-pv-pvc.yaml --kubeconfig="$KUBECONFIG_PATH"
+
+      # Si ollama existe, lo reactivamos tras reconciliar el PVC.
+      sudo kubectl -n default scale deployment/ollama --replicas=1 --kubeconfig="$KUBECONFIG_PATH" >/dev/null 2>&1 || true
+    EOT
+  }
+
+  depends_on = [aws_instance.k3s-master]
 }

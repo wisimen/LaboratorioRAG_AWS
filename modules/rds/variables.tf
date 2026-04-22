@@ -50,11 +50,6 @@ variable "vpc_security_group_ids" {
   type        = string
 }
 
-variable "source_security_group_id" {
-  description = "ID del security group origen (para K3S)"
-  type        = string
-}
-
 variable "skip_final_snapshot" {
   description = "Si true, no crea snapshot final al destruir"
   type        = bool

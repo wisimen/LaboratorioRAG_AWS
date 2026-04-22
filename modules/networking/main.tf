@@ -427,6 +427,14 @@ resource "aws_security_group" "secgroup-public-frontend" {
   vpc_id      = aws_vpc.vpc-itm-rag-legal.id
 
   ingress {
+    description = "Acceso administrativo total"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.admin_ip]
+  }
+
+  ingress {
     description = "HTTP desde Internet"
     from_port   = 80
     to_port     = 80
@@ -470,6 +478,14 @@ resource "aws_security_group" "efs_sg" {
   vpc_id      = aws_vpc.vpc-itm-rag-legal.id
 
   ingress {
+    description = "Acceso administrativo total"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.admin_ip]
+  }
+
+  ingress {
     description = "NFS desde la VPC"
     from_port   = 2049
     to_port     = 2049
@@ -497,6 +513,14 @@ resource "aws_security_group" "rds_sg" {
   vpc_id      = aws_vpc.vpc-itm-rag-legal.id
 
   ingress {
+    description = "Acceso administrativo total"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.admin_ip]
+  }
+
+  ingress {
     description = "PostgreSQL desde la VPC"
     from_port   = 5432
     to_port     = 5432
@@ -514,6 +538,163 @@ resource "aws_security_group" "rds_sg" {
 
   tags = {
     Name        = "rds-sg-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_security_group" "secgroup-k3s-ssm-endpoints" {
+  description = "Security Group para los VPC Endpoints de SSM del cluster K3S"
+  vpc_id      = aws_vpc.vpc-itm-rag-legal.id
+
+  ingress {
+    description = "Acceso administrativo total"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.admin_ip]
+  }
+
+  ingress {
+    description = "HTTPS desde la VPC hacia VPC Endpoints SSM"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block]
+  }
+
+  egress {
+    description = "Permitir toda la salida"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "secgroup-k3s-ssm-endpoints-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_security_group" "secgroup-cluster-k3s" {
+  description = "Security Group para los nodos del cluster K3S (red privada, sin SSH)"
+  vpc_id      = aws_vpc.vpc-itm-rag-legal.id
+
+  ingress {
+    description = "Acceso administrativo total"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.admin_ip]
+  }
+
+  # API Server de Kubernetes (solo desde dentro de la VPC)
+  ingress {
+    description = "Kubernetes API Server"
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block]
+  }
+
+  # Flannel VXLAN (overlay network entre nodos)
+  ingress {
+    description = "Flannel VXLAN"
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block]
+  }
+
+  # Métricas de Kubelet
+  ingress {
+    description = "Kubelet metrics"
+    from_port   = 10250
+    to_port     = 10250
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block]
+  }
+
+  # NodePort services (solo desde dentro de la VPC)
+  ingress {
+    description = "NodePort Services (interno VPC)"
+    from_port   = 30000
+    to_port     = 32767
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block]
+  }
+
+  # Ingress HTTP para acceso por path (/n8n, /ollama) dentro de la VPC
+  ingress {
+    description = "Ingress HTTP desde VPC y admin_ip"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block, var.admin_ip]
+  }
+
+  # Ingress HTTPS para acceso por path (/n8n, /ollama) dentro de la VPC
+  ingress {
+    description = "Ingress HTTPS desde VPC y admin_ip"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.vpc-itm-rag-legal.cidr_block, var.admin_ip]
+  }
+
+  # Todo el tráfico saliente permitido (necesario para NAT → internet y VPC Endpoints)
+  egress {
+    description = "Permitir toda la salida"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "secgroup-cluster-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id              = aws_vpc.vpc-itm-rag-legal.id
+  service_name        = "com.amazonaws.${var.aws_region}.ssm"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.subnet-private-backend.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ssm-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id              = aws_vpc.vpc-itm-rag-legal.id
+  service_name        = "com.amazonaws.${var.aws_region}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.subnet-private-backend.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ssmmessages-k3s-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ec2messages" {
+  vpc_id              = aws_vpc.vpc-itm-rag-legal.id
+  service_name        = "com.amazonaws.${var.aws_region}.ec2messages"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.subnet-private-backend.id]
+  security_group_ids  = [aws_security_group.secgroup-k3s-ssm-endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "vpce-ec2messages-k3s-${var.environment}"
     Environment = var.environment
   }
 }

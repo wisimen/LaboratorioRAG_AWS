@@ -3,6 +3,11 @@ variable "master_instance_id" {
   type        = string
 }
 
+variable "k3s_master_public_ip" {
+  description = "IP pública del master K3S usada como base del ingress"
+  type        = string
+}
+
 variable "k3s_master_private_ip" {
   description = "IP privada del master K3S usada como base del ingress"
   type        = string

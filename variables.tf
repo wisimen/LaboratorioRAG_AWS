@@ -8,6 +8,17 @@ variable "aws_profile" {
   default = "default"
 }
 
+# Admin IP
+variable "admin_ip" {
+  default = "181.205.245.242/32"
+}
+
+variable "k3s_root_volume_size_gb" {
+  description = "Tamaño del disco raíz (GB) para nodos K3S"
+  type        = number
+  default     = 80
+}
+
 variable "environment_name" {
   description = "Nombre del entorno"
   type        = map(string)

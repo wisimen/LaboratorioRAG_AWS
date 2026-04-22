@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   name: n8n
   namespace: ${namespace}
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: ${namespace}-n8n-stripprefix@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -14,4 +16,4 @@ spec:
               service:
                 name: n8n
                 port:
-                  number: 5678
+                  number: 80

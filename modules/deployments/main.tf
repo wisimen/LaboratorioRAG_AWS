@@ -19,11 +19,21 @@ module "ollama" {
 }
 
 output "n8n_url" {
-  description = "URL base para acceder a n8n via ingress"
-  value       = "http://${var.k3s_master_private_ip}/n8n"
+  description = "URL pública base para acceder a n8n via ingress"
+  value       = "http://${var.k3s_master_public_ip}/n8n/"
+}
+
+output "n8n_url_private" {
+  description = "URL privada base para acceder a n8n via ingress"
+  value       = "http://${var.k3s_master_private_ip}/n8n/"
 }
 
 output "ollama_url" {
-  description = "URL base para acceder a Ollama via ingress"
+  description = "URL pública base para acceder a Ollama via ingress"
+  value       = "http://${var.k3s_master_public_ip}/ollama"
+}
+
+output "ollama_url_private" {
+  description = "URL privada base para acceder a Ollama via ingress"
   value       = "http://${var.k3s_master_private_ip}/ollama"
 }

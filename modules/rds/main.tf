@@ -54,8 +54,6 @@ resource "aws_db_instance" "n8n_postgres" {
       storage_throughput,
     ]
   }
-
-  depends_on = [aws_security_group_rule.allow_postgres]
 }
 
 ########## KMS Key para encriptación de RDS ##########
@@ -74,19 +72,4 @@ resource "aws_kms_key" "rds_key" {
 resource "aws_kms_alias" "rds_key_alias" {
   name          = "alias/rds-n8n-${var.environment}"
   target_key_id = aws_kms_key.rds_key.key_id
-}
-
-########## Security Group Rule para permitir acceso desde K3S ##########
-
-resource "aws_security_group_rule" "allow_postgres" {
-  type                     = "ingress"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  security_group_id        = var.vpc_security_group_ids
-  source_security_group_id = var.source_security_group_id
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }

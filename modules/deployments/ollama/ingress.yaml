@@ -16,4 +16,4 @@ spec:
               service:
                 name: ollama
                 port:
-                  number: 11434
+                  number: 80

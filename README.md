@@ -386,9 +386,14 @@ sudo kubectl get nodes
 sudo kubectl get pods -A
 ```
 
-### 3. Acceder a n8n y Ollama API desde tu equipo local (AWS SSM)
+### 3. Acceder a n8n y Ollama desde tu equipo local (AWS SSM)
 
-Como el master K3S esta en subnet privada, desde tu equipo local debes usar un tunel SSM al puerto 80 del master.
+Como el master K3S esta en subnet privada, desde tu equipo local no debes apuntar el tunel SSM al puerto 80 del nodo. En esta arquitectura n8n y Ollama viven dentro de K3S detrás de Ingress, asi que el puerto 80 del host no tiene un proceso escuchando y SSM falla con `Connection to destination port failed`.
+
+El flujo correcto es:
+
+1. abrir un tunel SSM al API Server de K3S en el puerto 6443
+2. usar `kubectl port-forward` para exponer cada servicio en tu maquina local
 
 Puedes consultar los outputs de URL (referenciales dentro de la VPC):
 
@@ -397,7 +402,7 @@ terraform output deploy_n8n_url
 terraform output deploy_ollama_url
 ```
 
-Abre el tunel SSM (deja esta terminal abierta):
+Abre el tunel SSM al API Server (deja esta terminal abierta):
 
 **Bash**
 
@@ -406,7 +411,7 @@ aws ssm start-session \
   --target $(terraform output -raw k3s_master_instance_id) \
   --region us-east-1 \
   --document-name AWS-StartPortForwardingSession \
-  --parameters '{"portNumber":["80"],"localPortNumber":["8080"]}'
+  --parameters '{"portNumber":["6443"],"localPortNumber":["6443"]}'
 ```
 
 **PowerShell**
@@ -417,26 +422,40 @@ aws ssm start-session `
   --target $MasterId `
   --region us-east-1 `
   --document-name AWS-StartPortForwardingSession `
-  --parameters '{"portNumber":["80"],"localPortNumber":["8080"]}'
+  --parameters portNumber=6443,localPortNumber=6443
 ```
 
 **CMD**
 
 ```bat
-for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do aws ssm start-session --target %i --region us-east-1 --document-name AWS-StartPortForwardingSession --parameters "{\"portNumber\":[\"80\"],\"localPortNumber\":[\"8080\"]}"
+for /f "delims=" %i in ('terraform output -raw k3s_master_instance_id') do aws ssm start-session --target %i --region us-east-1 --document-name AWS-StartPortForwardingSession --parameters "{\"portNumber\":[\"6443\"],\"localPortNumber\":[\"6443\"]}"
 ```
 
-Con el tunel activo, accede desde tu navegador o cliente local:
+Con el tunel activo, abre otra terminal y expone los servicios con `kubectl`:
+
+**n8n**
+
+```bash
+kubectl --kubeconfig k3s.yaml port-forward -n default svc/n8n 8080:80
+```
+
+**Ollama**
+
+```bash
+kubectl --kubeconfig k3s.yaml port-forward -n default svc/ollama 8081:80
+```
+
+Luego accede desde tu navegador o cliente local:
 
 ```text
-http://127.0.0.1:8080/n8n
-http://127.0.0.1:8080/ollama
+http://127.0.0.1:8080/n8n/
+http://127.0.0.1:8081/ollama
 ```
 
 Prueba rapida de la API de Ollama:
 
 ```bash
-curl http://127.0.0.1:8080/ollama/api/tags
+curl http://127.0.0.1:8081/api/tags
 ```
 
 Si necesitas HTTPS (443), debes configurar certificado/TLS en Traefik y abrir un tunel SSM al puerto 443.

@@ -37,3 +37,13 @@ variable "environment" {
   description = "Nombre del entorno"
   type        = string
 }
+
+variable "aws_region" {
+  description = "Region AWS para los VPC Endpoints"
+  type        = string
+}
+
+variable "admin_ip" {
+  description = "CIDR de la IP administrativa con acceso total a los SG"
+  type        = string
+}
