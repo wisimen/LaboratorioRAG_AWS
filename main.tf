@@ -120,6 +120,8 @@ module "k3s" {
   efs_id      = module.storage.efs_id
   k3s_security_group_id = module.networking.k3s_security_group_id
   root_volume_size_gb = var.k3s_root_volume_size_gb
+  pv_name     = "efs-pv-shared"
+  pvc_name    = "efs-pvc-shared"
 }
 
 ########## Módulo Deployments (n8n + ollama) ##########
@@ -127,15 +129,19 @@ module "k3s" {
 module "deployments" {
   source = "./modules/deployments"
 
-  master_instance_id    = module.k3s.master_instance_id
-  k3s_master_public_ip  = module.k3s.master_public_ip
-  k3s_master_private_ip = module.k3s.master_private_ip
-  aws_region            = var.aws_region
-  namespace             = "default"
-  n8n_db_host           = module.rds.db_instance_address
-  n8n_db_name           = module.rds.db_name
-  n8n_db_user           = module.rds.db_username
-  n8n_db_password       = var.rds_password[terraform.workspace]
+  master_instance_id     = module.k3s.master_instance_id
+  k3s_master_public_ip   = module.k3s.master_public_ip
+  k3s_master_private_ip  = module.k3s.master_private_ip
+  aws_region             = var.aws_region
+  namespace              = "default"
+  n8n_db_host            = module.rds.db_instance_address
+  n8n_db_name            = module.rds.db_name
+  n8n_db_user            = module.rds.db_username
+  n8n_db_password        = var.rds_password[terraform.workspace]
+  n8n_encryption_key     = var.n8n_encryption_key[terraform.workspace]
+  n8n_port               = var.n8n_port[terraform.workspace]
+  environment            = var.environment_name[terraform.workspace]
+  pvc_name               = "efs-pvc-shared"
 
   depends_on = [module.k3s, module.rds]
 }

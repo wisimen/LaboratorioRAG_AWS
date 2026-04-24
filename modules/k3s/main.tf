@@ -77,7 +77,7 @@ resource "aws_instance" "k3s-master" {
     apiVersion: v1
     kind: PersistentVolume
     metadata:
-      name: efs-pv-shared
+      name: ${var.pv_name}
     spec:
       capacity:
         storage: 30Gi
@@ -93,7 +93,7 @@ resource "aws_instance" "k3s-master" {
     apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: efs-pvc-shared
+      name: ${var.pvc_name}
       namespace: default
     spec:
       accessModes:
@@ -102,7 +102,7 @@ resource "aws_instance" "k3s-master" {
       resources:
         requests:
           storage: 30Gi
-      volumeName: efs-pv-shared
+      volumeName: ${var.pv_name}
     EOM
 
     kubectl apply -f /tmp/k3s-efs-pv-pvc.yaml --kubeconfig=/etc/rancher/k3s/k3s.yaml
@@ -241,20 +241,20 @@ resource "aws_ssm_association" "apply_efs_shared_pv" {
 
       wait_for_k3s_api
 
-      CURRENT_HANDLE=$(sudo kubectl get pv efs-pv-shared --kubeconfig="$KUBECONFIG_PATH" -o jsonpath='{.spec.csi.volumeHandle}' 2>/dev/null || true)
+      CURRENT_HANDLE=$(sudo kubectl get pv ${var.pv_name} --kubeconfig="$KUBECONFIG_PATH" -o jsonpath='{.spec.csi.volumeHandle}' 2>/dev/null || true)
 
       # Si el PV apunta a otro filesystem, liberamos PVC/PV para recrearlo con el EFS actual.
       if [ -n "$CURRENT_HANDLE" ] && [ "$CURRENT_HANDLE" != "$TARGET_EFS_ID" ]; then
         sudo kubectl -n default scale deployment/ollama --replicas=0 --kubeconfig="$KUBECONFIG_PATH" >/dev/null 2>&1 || true
-        sudo kubectl delete pvc efs-pvc-shared -n default --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
-        sudo kubectl delete pv efs-pv-shared --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
+        sudo kubectl delete pvc ${var.pvc_name} -n default --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
+        sudo kubectl delete pv ${var.pv_name} --ignore-not-found=true --kubeconfig="$KUBECONFIG_PATH"
       fi
 
       cat >/tmp/k3s-efs-pv-pvc.yaml <<YAML
       apiVersion: v1
       kind: PersistentVolume
       metadata:
-        name: efs-pv-shared
+        name: ${var.pv_name}
       spec:
         capacity:
           storage: 30Gi
@@ -270,7 +270,7 @@ resource "aws_ssm_association" "apply_efs_shared_pv" {
       apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: efs-pvc-shared
+        name: ${var.pvc_name}
         namespace: default
       spec:
         accessModes:
@@ -279,7 +279,7 @@ resource "aws_ssm_association" "apply_efs_shared_pv" {
         resources:
           requests:
             storage: 30Gi
-        volumeName: efs-pv-shared
+        volumeName: ${var.pv_name}
       YAML
 
       sudo kubectl apply -f /tmp/k3s-efs-pv-pvc.yaml --kubeconfig="$KUBECONFIG_PATH"

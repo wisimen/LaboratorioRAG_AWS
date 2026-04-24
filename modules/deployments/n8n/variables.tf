@@ -33,3 +33,31 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "environment" {
+  description = "Ambiente (dev, staging, prod, etc)"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "Region AWS para SSM"
+  type        = string
+}
+
+variable "n8n_port" {
+  description = "Puerto NodePort para n8n (rango 30000-32767)"
+  type        = number
+  default     = 30567
+}
+
+variable "n8n_encryption_key" {
+  description = "Clave de encriptación para n8n"
+  type        = string
+  sensitive   = true
+}
+
+variable "pvc_name" {
+  description = "Nombre del PVC para persistencia de n8n"
+  type        = string
+  default     = "efs-pvc-shared"
+}

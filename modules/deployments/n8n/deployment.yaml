@@ -1,3 +1,12 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: n8n-secrets
+  namespace: ${namespace}
+type: Opaque
+stringData:
+  encryption-key: "${n8n_encryption_key}"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +22,14 @@ spec:
       labels:
         app: n8n
     spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "chown -R 1000:1000 /home/node/.n8n"]
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+      
       containers:
         - name: n8n
           image: n8nio/n8n:latest
@@ -20,6 +37,7 @@ spec:
           ports:
             - containerPort: 5678
           env:
+            # Configuración de Base de Datos
             - name: DB_TYPE
               value: postgresdb
             - name: DB_POSTGRESDB_HOST
@@ -36,13 +54,42 @@ spec:
               value: "true"
             - name: DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED
               value: "false"
-            - name: N8N_PATH
-              value: "/n8n/"
+            
+            # Configuración n8n
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: encryption-key
             - name: N8N_EDITOR_BASE_URL
-              value: "/n8n/"
+              value: "http://${master_public_ip}.nip.io/n8n/"
+            - name: N8N_PATH
+              value: "/"
+            - name: WEBHOOK_URL
+              value: "http://${master_public_ip}.nip.io/n8n/"
+            - name: N8N_HOST
+              value: "0.0.0.0"
             - name: N8N_PORT
               value: "5678"
             - name: N8N_USER_MANAGEMENT_DISABLED
               value: "true"
             - name: N8N_SECURE_COOKIE
               value: "false"
+          
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+          
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: ${pvc_name}
+          

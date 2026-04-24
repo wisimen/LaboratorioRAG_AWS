@@ -10,7 +10,7 @@ variable "aws_profile" {
 
 # Admin IP
 variable "admin_ip" {
-  default = "181.205.245.242/32"
+  default = "181.205.56.18/32"
 }
 
 variable "k3s_root_volume_size_gb" {
@@ -210,5 +210,28 @@ variable "rds_skip_final_snapshot" {
     "prod"    = false
     "test"    = true
     "dev"     = true
+  }
+}
+
+variable "n8n_encryption_key" {
+  description = "Clave de encriptación para n8n"
+  type        = map(string)
+  sensitive   = true
+  default = {
+    "default" = "testEncryptionKey123DefaultWorkspace!"
+    "prod"    = "testEncryptionKeyProd123!"
+    "test"    = "testEncryptionKeyTest123!"
+    "dev"     = "testEncryptionKeyDev123!"
+  }
+}
+
+variable "n8n_port" {
+  description = "Puerto NodePort para n8n (rango 30000-32767)"
+  type        = map(number)
+  default = {
+    "default" = 30567
+    "prod"    = 30567
+    "test"    = 30567
+    "dev"     = 30567
   }
 }

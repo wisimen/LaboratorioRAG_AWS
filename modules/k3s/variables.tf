@@ -57,3 +57,15 @@ variable "root_volume_size_gb" {
   type        = number
   default     = 80
 }
+
+variable "pv_name" {
+  description = "Nombre del PersistentVolume para almacenamiento compartido"
+  type        = string
+  default     = "efs-pv-shared"
+}
+
+variable "pvc_name" {
+  description = "Nombre del PersistentVolumeClaim para almacenamiento compartido"
+  type        = string
+  default     = "efs-pvc-shared"
+}

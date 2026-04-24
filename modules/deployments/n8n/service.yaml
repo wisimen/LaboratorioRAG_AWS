@@ -4,10 +4,11 @@ metadata:
   name: n8n
   namespace: ${namespace}
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: n8n
   ports:
     - name: http
       port: 80
       targetPort: 5678
+      nodePort: ${n8n_port}

@@ -55,15 +55,20 @@ resource "aws_ssm_association" "deploy_n8n" {
 
 cat >/tmp/n8n-deployment.yaml <<'YAML'
 ${templatefile("${path.module}/deployment.yaml", {
-    namespace   = var.namespace
-    db_host     = var.db_host
-    db_name     = var.db_name
-    db_user     = var.db_user
-    db_password = var.db_password
+    namespace            = var.namespace
+    db_host              = var.db_host
+    db_name              = var.db_name
+    db_user              = var.db_user
+    db_password          = var.db_password
+    master_public_ip     = data.aws_instance.k3s_master.public_ip_address
+    n8n_port             = var.n8n_port
+    n8n_encryption_key   = var.n8n_encryption_key
+    pvc_name             = var.pvc_name
     })}
 ---
 ${templatefile("${path.module}/service.yaml", {
-    namespace = var.namespace
+    namespace    = var.namespace
+    n8n_port     = var.n8n_port
     })}
 ---
 ${templatefile("${path.module}/middleware.yaml", {
@@ -79,4 +84,9 @@ wait_for_k3s_api
 apply_with_retry /tmp/n8n-deployment.yaml
       EOT
 }
+}
+
+# Data source para obtener los detalles de la instancia master
+data "aws_instance" "k3s_master" {
+  instance_id = var.master_instance_id
 }
